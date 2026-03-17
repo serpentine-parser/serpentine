@@ -1,0 +1,36 @@
+# Serpentine Configuration
+# Place this file as `.serpentine.yml` or `serpentine.yml` in your project root
+
+analysis:
+  # File extensions to analyze
+  extensions:
+    - .py
+    - .js
+    - .ts
+    - .tsx
+    - .jsx
+    - .rs
+
+  # Directories to exclude from analysis
+  # (dotfiles are always excluded)
+  exclude_dirs:
+    - __pycache__
+    - .git
+    - .venv
+    - venv
+    - node_modules
+    - .mypy_cache
+    - .pytest_cache
+    - .tox
+    - dist
+    - build
+    - static
+    - .next
+    - .nuxt
+    - coverage
+    - .egg-info
+    - target
+
+  # Glob patterns for files to exclude
+  # (relative to project root)
+  exclude_patterns: []

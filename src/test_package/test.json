@@ -1,0 +1,29 @@
+{
+  "subscriber": "control_flow",
+  "data": [
+    {
+      "depth": 0,
+      "expression": "speed > GLOBAL_CONSTANT",
+      "kind": "if",
+      "line": 23,
+      "node_type": "branch",
+      "scope": "test_package.app.Car.drive"
+    },
+    {
+      "depth": 0,
+      "expression": "car",
+      "kind": "name",
+      "line": 39,
+      "node_type": "return",
+      "scope": "test_package.app.build_car"
+    },
+    {
+      "depth": 0,
+      "expression": "__name__ == \"__main__\"",
+      "kind": "if",
+      "line": 50,
+      "node_type": "branch",
+      "scope": "test_package.app"
+    }
+  ]
+}
