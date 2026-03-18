@@ -25,7 +25,7 @@ from serpentine.watcher import FileWatcher
 
 
 @click.group()
-@click.version_option(version="0.1.0", prog_name="serpentine")
+@click.version_option(version="0.1.1", prog_name="serpentine")
 def main() -> None:
     """Serpentine: Fast dependency graph analysis for Python projects."""
     pass
