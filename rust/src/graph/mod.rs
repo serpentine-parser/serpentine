@@ -12,7 +12,6 @@
 use std::collections::HashMap;
 
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
 
 mod builder;
 mod pdg;
@@ -209,6 +208,7 @@ pub trait LanguageConfig: Send + Sync {
     fn is_stdlib(&self, module: &str) -> bool;
 
     /// Whether a module name refers to a third-party package (not local).
+    #[allow(dead_code)]
     fn is_third_party(&self, module: &str) -> bool;
 
     /// File extensions handled by this language config.

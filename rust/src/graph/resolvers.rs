@@ -1,4 +1,4 @@
-use super::{GraphBuilder, LanguageConfig, NodeData, ObjectType, Origin};
+use super::{GraphBuilder, NodeData, ObjectType, Origin};
 
 /// Returns true if `ancestor` is a strict ancestor of `descendant` in the
 /// dotted-name hierarchy (e.g. `serpentine` is an ancestor of `serpentine.state`).

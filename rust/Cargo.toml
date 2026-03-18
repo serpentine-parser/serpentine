@@ -13,7 +13,7 @@ tree-sitter-python = { version = "0.20", default-features = false }
 tree-sitter-javascript = { version = "0.20", default-features = false }
 tree-sitter-typescript = { version = "0.20", default-features = false }
 tree-sitter-rust = { version = "0.20", default-features = false }
-pyo3 = { version = "0.20", features = ["extension-module"] }
+pyo3 = { version = "0.20", features = ["extension-module", "abi3-py312"] }
 rayon = "1.10"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"

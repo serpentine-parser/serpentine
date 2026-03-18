@@ -13,7 +13,7 @@
 
 pub mod config;
 
-use crate::events::{generate_node_id, Event, ScopeType};
+use crate::events::{Event, ScopeType};
 use tree_sitter::{Node, Tree};
 
 // ============================================================================
@@ -24,16 +24,8 @@ use tree_sitter::{Node, Tree};
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub enum JsLang {
     JavaScript,
-    Jsx,
     TypeScript,
     Tsx,
-}
-
-impl JsLang {
-    /// Whether this variant carries TypeScript-specific syntax.
-    pub fn is_typescript(&self) -> bool {
-        matches!(self, JsLang::TypeScript | JsLang::Tsx)
-    }
 }
 
 // ============================================================================
@@ -54,7 +46,6 @@ struct ProjectInfo {
 struct Ctx<'a> {
     source: &'a str,
     file_path: &'a str,
-    lang: JsLang,
     /// Stack of (short name, qualname) for the current scope chain.
     scope_stack: Vec<(String, String)>,
     /// Project root info, used for module path derivation and import resolution.
@@ -389,7 +380,7 @@ fn normalize_import(module: &str, file_path: &str, info: &Option<ProjectInfo>) -
 // Public parse entry point
 // ============================================================================
 
-pub fn parse(source: &str, tree: &Option<Tree>, file_path: &str, lang: JsLang) -> Vec<Event> {
+pub fn parse(source: &str, tree: &Option<Tree>, file_path: &str, _lang: JsLang) -> Vec<Event> {
     let mut events = Vec::new();
 
     // Source line events (for CodeSnippet subscriber)
@@ -414,7 +405,6 @@ pub fn parse(source: &str, tree: &Option<Tree>, file_path: &str, lang: JsLang) -
     let mut ctx = Ctx {
         source,
         file_path,
-        lang,
         scope_stack: vec![(module_name.clone(), module_qualname.clone())],
         project_info,
     };
@@ -462,27 +452,27 @@ fn emit_identifier_use(ctx: &Ctx, node: Node, events: &mut Vec<Event>) {
         match parent.kind() {
             // Skip: declarator name (const FOO = ...)
             "variable_declarator" => {
-                if parent.child_by_field_name("name").map_or(false, |n| n.id() == node.id()) {
+                if parent.child_by_field_name("name").is_some_and(|n| n.id() == node.id()) {
                     return;
                 }
             }
             // Skip: function / generator declaration name
             "function_declaration" | "generator_function_declaration"
             | "function" | "generator_function" => {
-                if parent.child_by_field_name("name").map_or(false, |n| n.id() == node.id()) {
+                if parent.child_by_field_name("name").is_some_and(|n| n.id() == node.id()) {
                     return;
                 }
             }
             // Skip: class declaration name
             "class_declaration" | "class" | "abstract_class_declaration" => {
-                if parent.child_by_field_name("name").map_or(false, |n| n.id() == node.id()) {
+                if parent.child_by_field_name("name").is_some_and(|n| n.id() == node.id()) {
                     return;
                 }
             }
             // Skip: method / property signature name
             "method_definition" | "method_signature" | "property_signature"
             | "public_field_definition" => {
-                if parent.child_by_field_name("name").map_or(false, |n| n.id() == node.id()) {
+                if parent.child_by_field_name("name").is_some_and(|n| n.id() == node.id()) {
                     return;
                 }
             }
@@ -492,20 +482,20 @@ fn emit_identifier_use(ctx: &Ctx, node: Node, events: &mut Vec<Event>) {
             "export_specifier" => return,
             // Skip: labeled statement label
             "labeled_statement" => {
-                if parent.child_by_field_name("label").map_or(false, |n| n.id() == node.id()) {
+                if parent.child_by_field_name("label").is_some_and(|n| n.id() == node.id()) {
                     return;
                 }
             }
             // Skip: member-expression property  (obj.PROP — not LEGB-resolvable)
             // The object part (obj) is NOT skipped and will fire separately.
             "member_expression" => {
-                if parent.child_by_field_name("property").map_or(false, |n| n.id() == node.id()) {
+                if parent.child_by_field_name("property").is_some_and(|n| n.id() == node.id()) {
                     return;
                 }
             }
             // Skip: object literal key  { key: value }
             "pair" => {
-                if parent.child_by_field_name("key").map_or(false, |n| n.id() == node.id()) {
+                if parent.child_by_field_name("key").is_some_and(|n| n.id() == node.id()) {
                     return;
                 }
             }
@@ -514,7 +504,7 @@ fn emit_identifier_use(ctx: &Ctx, node: Node, events: &mut Vec<Event>) {
             // Skip: TypeScript parameter names — the `name` field is a definition, not a use.
             // The `type` field IS walked (by the required_parameter arm in walk_node).
             "required_parameter" | "optional_parameter" => {
-                if parent.child_by_field_name("name").map_or(false, |n| n.id() == node.id()) {
+                if parent.child_by_field_name("name").is_some_and(|n| n.id() == node.id()) {
                     return;
                 }
             }

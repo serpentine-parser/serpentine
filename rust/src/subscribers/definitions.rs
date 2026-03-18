@@ -87,7 +87,7 @@ impl DefinitionsSubscriber {
             if let Some(pending) = self.definitions_by_scope.remove("<pending>") {
                 self.definitions_by_scope
                     .entry(module_qualname)
-                    .or_insert_with(Vec::new)
+                    .or_default()
                     .extend(pending);
             }
         }
@@ -98,7 +98,7 @@ impl DefinitionsSubscriber {
         // Ensure there's an entry for this scope (even if empty)
         self.definitions_by_scope
             .entry(qualname.to_string())
-            .or_insert_with(Vec::new);
+            .or_default();
 
         // Also add a DefineName for the scope itself (class or function definition)
         let def_type = match scope_type {
@@ -129,7 +129,7 @@ impl DefinitionsSubscriber {
 
         self.definitions_by_scope
             .entry(parent_scope)
-            .or_insert_with(Vec::new)
+            .or_default()
             .push(def);
     }
 
@@ -157,7 +157,7 @@ impl DefinitionsSubscriber {
             // that will be assigned to module scope once we know it
             self.definitions_by_scope
                 .entry("<pending>".to_string())
-                .or_insert_with(Vec::new)
+                .or_default()
                 .push(Definition {
                     node_id: node_id.to_string(),
                     name: name.to_string(),
@@ -178,7 +178,7 @@ impl DefinitionsSubscriber {
 
         self.definitions_by_scope
             .entry(current_scope)
-            .or_insert_with(Vec::new)
+            .or_default()
             .push(def);
     }
 }

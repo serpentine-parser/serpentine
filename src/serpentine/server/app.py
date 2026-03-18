@@ -12,9 +12,10 @@ makes testing easier by enabling different configurations.
 
 import asyncio
 import logging
+from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from pathlib import Path
-from typing import TYPE_CHECKING, AsyncIterator
+from typing import TYPE_CHECKING
 
 from starlette.applications import Starlette
 from starlette.middleware import Middleware
@@ -92,8 +93,8 @@ def create_app(
     # Create API routes
     routes = create_routes(state_manager, connection_manager)
 
-    # Add static file serving if directory exists
-    if static_dir and static_dir.exists():
+    # Add static file serving if directory has a built frontend
+    if static_dir and (static_dir / "index.html").exists():
         routes.append(
             Mount(  # type: ignore
                 "/",
@@ -141,7 +142,7 @@ def _schedule_broadcast(
     running in background threads.
     """
     global _event_loop
-    
+
     async def do_broadcast() -> None:
         try:
             await connection_manager.send_graph_update(state_manager.get_graph_json())
@@ -208,7 +209,7 @@ def _get_fallback_html(state_manager: "GraphStateManager") -> str:
     <body>
         <h1>🐍 Serpentine</h1>
         <p>WebSocket Status: <span id="ws-status" class="disconnected">Connecting...</span></p>
-        
+
         <div class="stats">
             <div class="stat">
                 <div class="stat-value" id="node-count">{state_manager.node_count}</div>
@@ -219,27 +220,27 @@ def _get_fallback_html(state_manager: "GraphStateManager") -> str:
                 <div>Edges</div>
             </div>
         </div>
-        
+
         <h2>Graph Data</h2>
         <pre id="graph-data">Loading...</pre>
-        
+
         <script>
             const ws = new WebSocket(`ws://${{location.host}}/ws`);
             const status = document.getElementById('ws-status');
             const graphData = document.getElementById('graph-data');
             const nodeCount = document.getElementById('node-count');
             const edgeCount = document.getElementById('edge-count');
-            
+
             ws.onopen = () => {{
                 status.textContent = 'Connected';
                 status.className = 'connected';
             }};
-            
+
             ws.onclose = () => {{
                 status.textContent = 'Disconnected';
                 status.className = 'disconnected';
             }};
-            
+
             ws.onmessage = (event) => {{
                 const msg = JSON.parse(event.data);
                 if (msg.type === 'graph_update') {{
@@ -250,7 +251,7 @@ def _get_fallback_html(state_manager: "GraphStateManager") -> str:
                     }}
                 }}
             }};
-            
+
             // Ping every 30s to keep connection alive
             setInterval(() => {{
                 if (ws.readyState === WebSocket.OPEN) {{

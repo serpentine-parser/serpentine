@@ -324,6 +324,7 @@ impl RawBindingsSubscriber {
         }
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn handle_assignment(
         &mut self,
         node_id: &str,
@@ -416,7 +417,7 @@ impl RawBindingsSubscriber {
         let mut current_token = String::new();
 
         for ch in expression.chars() {
-            if delimiters.iter().any(|&d| d.chars().next() == Some(ch)) {
+            if delimiters.iter().any(|&d| d.starts_with(ch)) {
                 if !current_token.is_empty() {
                     tokens.push(current_token.clone());
                     current_token.clear();
@@ -432,7 +433,7 @@ impl RawBindingsSubscriber {
         // Filter for valid identifiers (not numeric or string literals)
         for token in tokens {
             // Skip numeric literals
-            if token.chars().next().map_or(false, |c| c.is_ascii_digit()) {
+            if token.chars().next().is_some_and(|c| c.is_ascii_digit()) {
                 continue;
             }
 
