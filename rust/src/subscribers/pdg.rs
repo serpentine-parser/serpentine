@@ -42,6 +42,7 @@ struct PdgEdge {
 }
 
 #[derive(Debug)]
+#[allow(dead_code)]
 enum ControlFrame {
     If {
         condition_id: String,
@@ -381,8 +382,8 @@ impl FunctionPdg {
                     | Some(ControlFrame::Elif { condition_id, true_exits, .. }) => {
                         let cid = condition_id.clone();
                         // Collect any remaining pending exits as true-branch exits.
-                        true_exits.extend(self.pending_exits.drain(..));
-                        let saved_true = true_exits.drain(..).collect::<Vec<_>>();
+                        true_exits.append(&mut self.pending_exits);
+                        let saved_true = std::mem::take(true_exits);
                         // Remove the current frame and push Else.
                         self.control_stack.pop();
                         let false_block_id = format!("{}:block_{}", self.qualname, self.node_counter);
@@ -407,8 +408,8 @@ impl FunctionPdg {
                     Some(ControlFrame::If { condition_id, true_exits, .. })
                     | Some(ControlFrame::Elif { condition_id, true_exits, .. }) => {
                         let cid = condition_id.clone();
-                        true_exits.extend(self.pending_exits.drain(..));
-                        let saved_true = true_exits.drain(..).collect::<Vec<_>>();
+                        true_exits.append(&mut self.pending_exits);
+                        let saved_true = std::mem::take(true_exits);
                         self.control_stack.pop();
 
                         // False branch becomes the entry for the elif condition.
@@ -436,7 +437,7 @@ impl FunctionPdg {
                 let top = self.control_stack.last_mut();
                 if let Some(ControlFrame::Match { subject_id, all_case_exits }) = top {
                     let sid = subject_id.clone();
-                    all_case_exits.extend(self.pending_exits.drain(..));
+                    all_case_exits.append(&mut self.pending_exits);
                     // Start next case from subject's false branch.
                     self.pending_exits.push(PendingExit {
                         from: sid,
@@ -458,7 +459,7 @@ impl FunctionPdg {
                 match frame {
                     Some(ControlFrame::If { condition_id, mut true_exits, .. }) => {
                         // No else: merge true exits + condition's false branch.
-                        true_exits.extend(self.pending_exits.drain(..));
+                        true_exits.append(&mut self.pending_exits);
                         true_exits.push(PendingExit {
                             from: condition_id,
                             edge_type: "false_branch".to_string(),
@@ -466,7 +467,7 @@ impl FunctionPdg {
                         self.pending_exits = true_exits;
                     }
                     Some(ControlFrame::Elif { condition_id, mut true_exits, .. }) => {
-                        true_exits.extend(self.pending_exits.drain(..));
+                        true_exits.append(&mut self.pending_exits);
                         true_exits.push(PendingExit {
                             from: condition_id,
                             edge_type: "false_branch".to_string(),
@@ -476,7 +477,7 @@ impl FunctionPdg {
                     Some(ControlFrame::Else { exits_from_true_branches, .. }) => {
                         // Merge both-branch exits.
                         let mut all = exits_from_true_branches;
-                        all.extend(self.pending_exits.drain(..));
+                        all.append(&mut self.pending_exits);
                         self.pending_exits = all;
                     }
                     _ => {} // mismatched end
@@ -517,7 +518,7 @@ impl FunctionPdg {
                 let frame = self.control_stack.pop();
                 if let Some(ControlFrame::Match { all_case_exits, .. }) = frame {
                     let mut all = all_case_exits;
-                    all.extend(self.pending_exits.drain(..));
+                    all.append(&mut self.pending_exits);
                     self.pending_exits = all;
                 }
             }

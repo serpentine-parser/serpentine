@@ -126,6 +126,7 @@ impl ScopeTreeSubscriber {
         current
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn handle_enter_scope(
         &mut self,
         scope_type: &ScopeType,

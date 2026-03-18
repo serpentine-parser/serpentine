@@ -217,7 +217,7 @@ impl FileManager {
         // Parse and cache results immediately
         entry
             .process_and_cache()
-            .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e))?;
+            .map_err(pyo3::exceptions::PyRuntimeError::new_err)?;
 
         self.files.insert(pb, entry);
         Ok(())
@@ -238,7 +238,7 @@ impl FileManager {
             .collect();
 
         for (pb, result) in results {
-            self.files.insert(pb, result.map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e))?);
+            self.files.insert(pb, result.map_err(pyo3::exceptions::PyRuntimeError::new_err)?);
         }
         Ok(())
     }
@@ -258,7 +258,7 @@ impl FileManager {
 
         let changed = entry
             .update(source.to_string())
-            .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e))?;
+            .map_err(pyo3::exceptions::PyRuntimeError::new_err)?;
 
         let pylist = PyList::empty(py);
         if changed {

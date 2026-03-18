@@ -79,7 +79,7 @@ impl UsesSubscriber {
             if let Some(pending) = self.uses_by_scope.remove("<pending>") {
                 self.uses_by_scope
                     .entry(module_qualname)
-                    .or_insert_with(Vec::new)
+                    .or_default()
                     .extend(pending);
             }
         }
@@ -90,7 +90,7 @@ impl UsesSubscriber {
         // Ensure there's an entry for this scope (even if empty)
         self.uses_by_scope
             .entry(qualname.to_string())
-            .or_insert_with(Vec::new);
+            .or_default();
     }
 
     fn handle_exit_scope(&mut self) {
@@ -103,7 +103,7 @@ impl UsesSubscriber {
         let Some(current_scope) = self.current_scope() else {
             self.uses_by_scope
                 .entry("<pending>".to_string())
-                .or_insert_with(Vec::new)
+                .or_default()
                 .push(NameUse {
                     node_id: node_id.to_string(),
                     name: name.to_string(),
@@ -122,7 +122,7 @@ impl UsesSubscriber {
 
         self.uses_by_scope
             .entry(current_scope)
-            .or_insert_with(Vec::new)
+            .or_default()
             .push(name_use);
     }
 }

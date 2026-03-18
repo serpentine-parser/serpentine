@@ -263,6 +263,7 @@ impl Event {
     }
 
     /// Helper to create an EnterScope event with an optional docstring
+    #[allow(clippy::too_many_arguments)]
     pub fn enter_scope_with_docstring(
         scope_type: ScopeType,
         name: String,

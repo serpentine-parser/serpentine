@@ -56,13 +56,13 @@ fn extract_module_docstring(ctx: &ParseContext, root: Node) -> Option<String> {
 
 /// Strip outer quotes from a Python string literal and dedent the content.
 fn clean_docstring(raw: &str) -> String {
-    let inner = if raw.starts_with("\"\"\"") && raw.ends_with("\"\"\"") && raw.len() >= 6 {
+    let inner = if (raw.starts_with("\"\"\"") && raw.ends_with("\"\"\"") && raw.len() >= 6)
+        || (raw.starts_with("'''") && raw.ends_with("'''") && raw.len() >= 6)
+    {
         &raw[3..raw.len() - 3]
-    } else if raw.starts_with("'''") && raw.ends_with("'''") && raw.len() >= 6 {
-        &raw[3..raw.len() - 3]
-    } else if raw.starts_with('"') && raw.ends_with('"') && raw.len() >= 2 {
-        &raw[1..raw.len() - 1]
-    } else if raw.starts_with('\'') && raw.ends_with('\'') && raw.len() >= 2 {
+    } else if (raw.starts_with('"') && raw.ends_with('"') && raw.len() >= 2)
+        || (raw.starts_with('\'') && raw.ends_with('\'') && raw.len() >= 2)
+    {
         &raw[1..raw.len() - 1]
     } else {
         raw
@@ -980,12 +980,12 @@ fn emit_attribute_events(ctx: &ParseContext, node: Node, events: &mut Vec<Event>
     let object = node
         .child_by_field_name("object")
         .map(|n| get_node_text(ctx, n))
-        .unwrap_or_else(|| "".to_string());
+        .unwrap_or_default();
 
     let attribute = node
         .child_by_field_name("attribute")
         .map(|n| get_node_text(ctx, n))
-        .unwrap_or_else(|| "".to_string());
+        .unwrap_or_default();
 
     events.push(Event::attribute_access(
         object,

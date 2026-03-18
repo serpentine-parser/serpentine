@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use serde_json::Value;
 
-use super::{GraphBuilder, NodeData, ObjectType, Origin, EdgeData};
+use super::{GraphBuilder, NodeData, ObjectType, EdgeData};
 
 /// Parse comma-separated top-level args from "Foo(a, b, c)" → ["a", "b", "c"].
 /// Does NOT handle nested parens — only works for simple identifier args.
@@ -580,7 +580,7 @@ impl GraphBuilder {
             if return_text.contains('(') {
                 let callable = self.extract_callable(return_text);
                 if let Some(resolved) = self.resolve_callee(scope, &callable) {
-                    let last_seg = resolved.split('.').last().unwrap_or(&resolved);
+                    let last_seg = resolved.split('.').next_back().unwrap_or(&resolved);
                     let is_class_like = self
                         .definitions
                         .get(&resolved)
