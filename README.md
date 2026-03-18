@@ -24,10 +24,19 @@ Serpentine analyzes your codebase using a Rust-powered parser and displays an in
 
 ## Installation
 
+### Pre-built wheels (recommended)
+
+Download the wheel for your platform from the [latest GitHub Release](https://github.com/serpentine-parser/serpentine/releases/latest). No Rust toolchain required.
+
+```bash
+pip install serpentine-*.whl
+```
+
+### From source
+
 > **Prerequisites**: Python 3.12+, [Rust toolchain](https://rustup.rs), Node.js 18+
 
 ```bash
-# Clone and build from source
 git clone https://github.com/serpentine-parser/serpentine.git
 cd serpentine
 
@@ -38,7 +47,7 @@ cd frontend && npm install && npm run build && cd ..
 make install
 ```
 
-This installs the `serpentine` CLI globally via `uv tool`.
+This installs the `serpentine` CLI globally via `uv tool`, which you will need to [install separately](https://docs.astral.sh/uv/getting-started/installation/).
 
 ---
 
