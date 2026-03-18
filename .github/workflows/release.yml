@@ -4,8 +4,6 @@ on:
   push:
     tags:
       - "v*.*.*"
-    branches:
-      - chore/add-ci # temporary: remove after first successful run
   workflow_dispatch:
 
 jobs:
@@ -90,6 +88,8 @@ jobs:
     permissions:
       contents: write
     steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           pattern: wheels-*
