@@ -261,15 +261,24 @@ fn find_project_info(file_path: &str) -> Option<ProjectInfo> {
 ///
 /// Returns `(alias_prefix, target_dir)` pairs, e.g. `("@app", "src/app")`.
 /// Single-character aliases like `@` are skipped (too generic).
+///
+/// Targets that start with `../` are resolved to absolute filesystem paths using
+/// the tsconfig's directory as the base. This allows cross-package alias targets
+/// (e.g. `"@my-company/*": ["../lib/*"]` in a monorepo) to resolve correctly
+/// in `normalize_import` via `derive_module_path`.
 fn read_tsconfig_aliases_from(path: &std::path::Path) -> Option<Vec<(String, String)>> {
+    use std::path::{Component, PathBuf};
+
     let content = std::fs::read_to_string(path).ok()?;
     let json: serde_json::Value = serde_json::from_str(&content).ok()?;
     let paths_obj = json.get("compilerOptions")?.get("paths")?.as_object()?;
 
+    let tsconfig_dir = path.parent().unwrap_or(std::path::Path::new("."));
+
     let mut aliases = Vec::new();
     for (alias, targets) in paths_obj {
         let alias_prefix = alias.strip_suffix("/*").unwrap_or(alias.as_str());
-        if alias_prefix.len() <= 1 {
+        if alias_prefix.is_empty() || alias_prefix == "@" {
             continue;
         }
         if let Some(target_str) = targets
@@ -277,17 +286,36 @@ fn read_tsconfig_aliases_from(path: &std::path::Path) -> Option<Vec<(String, Str
             .and_then(|a| a.first())
             .and_then(|v| v.as_str())
         {
-            let stripped = target_str.strip_prefix("./").unwrap_or(target_str);
-            let target_dir = stripped
+            // Strip glob suffix and trailing slashes.
+            let without_glob = target_str
                 .strip_suffix("/*")
-                .unwrap_or(stripped)
+                .unwrap_or(target_str)
                 .trim_end_matches('/');
             // Strip file extensions from file-targeted aliases like "./src/store.ts" → "src/store"
-            let target_dir = [".ts", ".tsx", ".js", ".jsx", ".mjs"]
+            let without_ext = [".ts", ".tsx", ".js", ".jsx", ".mjs"]
                 .iter()
-                .fold(target_dir.to_string(), |s, ext| {
+                .fold(without_glob.to_string(), |s, ext| {
                     s.strip_suffix(ext).unwrap_or(&s).to_string()
                 });
+
+            let target_dir = if without_ext.starts_with("../") || without_ext == ".." {
+                // Parent-relative target — resolve to absolute path so that
+                // normalize_import can use derive_module_path on it.
+                let abs = tsconfig_dir.join(&without_ext);
+                let normalized: PathBuf = abs.components().fold(PathBuf::new(), |mut acc, c| {
+                    match c {
+                        Component::ParentDir => { acc.pop(); }
+                        Component::CurDir => {}
+                        _ => acc.push(c),
+                    }
+                    acc
+                });
+                normalized.to_string_lossy().to_string()
+            } else {
+                // In-project target — strip leading `./` and store as relative.
+                without_ext.strip_prefix("./").unwrap_or(&without_ext).to_string()
+            };
+
             aliases.push((alias_prefix.to_string(), target_dir));
         }
     }
@@ -342,10 +370,7 @@ fn normalize_import(module: &str, file_path: &str, info: &Option<ProjectInfo>) -
         }
     }
 
-    if !module.starts_with('@') {
-        return module.to_string();
-    }
-
+    // Try alias lookup for any non-relative import (not just `@`-prefixed).
     if let Some(info) = info {
         for (alias_prefix, target_dir) in &info.aliases {
             let alias_slash = format!("{}/", alias_prefix);
@@ -357,19 +382,37 @@ fn normalize_import(module: &str, file_path: &str, info: &Option<ProjectInfo>) -
                 continue;
             };
 
-            let mut parts = vec![info.root_name.clone()];
-            for seg in target_dir.split('/') {
-                if !seg.is_empty() {
-                    parts.push(seg.to_string());
+            if target_dir.starts_with('/') {
+                // Absolute path target (from a `../`-prefixed tsconfig entry).
+                // Build a fake file path and use derive_module_path for resolution
+                // so the result is consistent with how real files are named.
+                let mut fake_path = target_dir.clone();
+                if !rest.is_empty() {
+                    fake_path.push('/');
+                    fake_path.push_str(rest);
                 }
-            }
-            for seg in rest.split('/') {
-                if !seg.is_empty() {
-                    parts.push(seg.to_string());
+                let parts = derive_module_path(&format!("{}.ts", fake_path));
+                return parts.join(".");
+            } else {
+                // Relative target — build dotted path from root_name + target segments.
+                let mut parts = vec![info.root_name.clone()];
+                for seg in target_dir.split('/') {
+                    if !seg.is_empty() {
+                        parts.push(seg.to_string());
+                    }
                 }
+                for seg in rest.split('/') {
+                    if !seg.is_empty() {
+                        parts.push(seg.to_string());
+                    }
+                }
+                return parts.join(".");
             }
-            return parts.join(".");
         }
+    }
+
+    if !module.starts_with('@') {
+        return module.to_string();
     }
 
     // No alias matched — scoped npm package; normalise slashes for consistency.
