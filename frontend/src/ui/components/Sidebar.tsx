@@ -200,7 +200,7 @@ function TreeNode({
         </div>
 
         <HighlightedText
-          text={node.label || node.id.split(".").pop() || node.id}
+          text={node.id.split(".").pop() || node.id}
           highlight={searchQuery}
           className={`text-sm truncate ${getChangeStatusClasses(node)?.text ?? getOriginColor(node.origin)} ${isSelected ? "font-medium" : ""}`}
         />
