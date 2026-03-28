@@ -1,5 +1,5 @@
 [project]
-name = "serpentine"
+name = "serpentine-parser"
 version = "0.1.1"
 description = "Fast dependency graph analysis and visualization for Python, JavaScript/TypeScript, and Rust projects"
 readme = "README.md"

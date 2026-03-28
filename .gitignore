@@ -20,6 +20,7 @@ target/
 
 # Frontend Build
 src/serpentine/static/*
+frontend/.env.local
 
 # Agentic
 .claude/scratch/

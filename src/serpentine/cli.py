@@ -18,6 +18,7 @@ from typing import Any
 import click
 import uvicorn
 
+from serpentine import __version__
 from serpentine.selector import GraphSelector, filter_by_state
 from serpentine.server import create_app
 from serpentine.state import GraphStateManager
@@ -25,7 +26,7 @@ from serpentine.watcher import FileWatcher
 
 
 @click.group()
-@click.version_option(version="0.1.1", prog_name="serpentine")
+@click.version_option(version=__version__, prog_name="serpentine")
 def main() -> None:
     """Serpentine: Fast dependency graph analysis for Python projects."""
     pass
