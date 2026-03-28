@@ -24,12 +24,16 @@ Serpentine analyzes your codebase using a Rust-powered parser and displays an in
 
 ## Installation
 
-### Pre-built wheels (recommended)
-
-Download the wheel for your platform from the [latest GitHub Release](https://github.com/serpentine-parser/serpentine/releases/latest). No Rust toolchain required.
+### PyPI (recommended)
 
 ```bash
-pip install serpentine-*.whl
+pip install serpentine-parser
+```
+
+Or with [uv](https://docs.astral.sh/uv/):
+
+```bash
+uv tool install serpentine-parser
 ```
 
 ### From source
