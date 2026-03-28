@@ -103,10 +103,16 @@ pub fn parse(source: &str, tree: &Option<Tree>, file_path: &str) -> Vec<Event> {
     if let Some(tree) = tree {
         let root = tree.root_node();
         let module_path = derive_module_path(file_path);
+        let is_init = std::path::Path::new(file_path)
+            .file_stem()
+            .and_then(|s| s.to_str())
+            .map(|s| s == "__init__")
+            .unwrap_or(false);
         let context = ParseContext {
             source,
             file_path,
             module_path,
+            is_init,
         };
 
         // Emit module-level EnterScope so the docstring and scope range are captured.
@@ -211,6 +217,7 @@ struct ParseContext<'a> {
     source: &'a str,
     file_path: &'a str,
     module_path: Vec<String>,
+    is_init: bool,
 }
 
 fn walk_node_python(ctx: &ParseContext, node: Node, events: &mut Vec<Event>) {
@@ -438,9 +445,14 @@ fn emit_import_from_events(ctx: &ParseContext, node: Node, events: &mut Vec<Even
                 // Handle relative imports: from . import x, from .. import x
                 let text = get_node_text(ctx, child);
                 relative_level = text.chars().filter(|c| *c == '.').count();
-                // Check if there's a module name after the dots
-                if let Some(dotted) = child.child_by_field_name("module") {
-                    module_name = get_node_text(ctx, dotted);
+                // The tree-sitter Python grammar has no named field for the dotted_name
+                // inside relative_import — iterate children to find it.
+                let mut ri_cursor = child.walk();
+                for ri_child in child.children(&mut ri_cursor) {
+                    if ri_child.kind() == "dotted_name" {
+                        module_name = get_node_text(ctx, ri_child);
+                        break;
+                    }
                 }
             }
             "import_prefix" => {
@@ -561,7 +573,14 @@ fn resolve_relative_import(ctx: &ParseContext, level: usize, module_name: &str) 
     // etc.
 
     let current_parts = &ctx.module_path;
-    if current_parts.is_empty() || level > current_parts.len() {
+
+    // For __init__.py, module_path is already the package (e.g. ["requests"]).
+    // level=1 means "this package", so we should not subtract anything.
+    // For regular modules, module_path includes the file stem (e.g. ["requests","sessions"]),
+    // and level=1 means "go up to the package", so we subtract 1.
+    let effective_level = if ctx.is_init && level > 0 { level - 1 } else { level };
+
+    if current_parts.is_empty() || effective_level > current_parts.len() {
         // Can't resolve, return as-is with dots preserved for debugging
         let dots = ".".repeat(level);
         if module_name.is_empty() {
@@ -570,8 +589,8 @@ fn resolve_relative_import(ctx: &ParseContext, level: usize, module_name: &str) 
         return format!("{}{}", dots, module_name);
     }
 
-    // Go up 'level' directories
-    let base_len = current_parts.len().saturating_sub(level);
+    // Go up 'effective_level' directories
+    let base_len = current_parts.len().saturating_sub(effective_level);
     let base_parts: Vec<&str> = current_parts
         .iter()
         .take(base_len)

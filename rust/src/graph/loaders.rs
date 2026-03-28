@@ -349,6 +349,21 @@ impl GraphBuilder {
                 self.import_bindings.insert(binding_key, resolved_source.clone());
             }
         }
+
+        // Post-process: follow import chains to their ultimate target.
+        // Python forbids circular imports, so each chain terminates.
+        // Depth limit of 20 is a safety net for malformed data only.
+        let keys: Vec<String> = self.import_bindings.keys().cloned().collect();
+        for key in keys {
+            let Some(mut value) = self.import_bindings.get(&key).cloned() else { continue };
+            for _ in 0..20 {
+                match self.import_bindings.get(&value).cloned() {
+                    Some(next) if next != value => value = next,
+                    _ => break,
+                }
+            }
+            self.import_bindings.insert(key, value);
+        }
     }
 
     /// Imports create edges from the importing module to the imported module.
@@ -480,17 +495,22 @@ impl GraphBuilder {
                             && (self.definitions.contains_key(source_qualname)
                                 || self.definitions.contains_key(&resolved))
                         {
-                            self.ensure_external_node(&resolved);
-                            self.edges.insert(EdgeData::new(source_qualname, &resolved, "has-a"));
-                            // For factory functions, also emit a calls edge so the factory
-                            // relationship is preserved after RETYPE replaces the has-a.
-                            if self
-                                .definitions
-                                .get(&resolved)
-                                .map(|n| n.object_type == ObjectType::Function)
-                                .unwrap_or(false)
-                            {
-                                self.edges.insert(EdgeData::new(source_qualname, &resolved, "calls"));
+                            let top = resolved.split('.').next().unwrap_or(&resolved);
+                            if !self.local_prefixes.contains(top) {
+                                self.ensure_external_node(&resolved);
+                            }
+                            if self.definitions.contains_key(&resolved) {
+                                self.edges.insert(EdgeData::new(source_qualname, &resolved, "has-a"));
+                                // For factory functions, also emit a calls edge so the factory
+                                // relationship is preserved after RETYPE replaces the has-a.
+                                if self
+                                    .definitions
+                                    .get(&resolved)
+                                    .map(|n| n.object_type == ObjectType::Function)
+                                    .unwrap_or(false)
+                                {
+                                    self.edges.insert(EdgeData::new(source_qualname, &resolved, "calls"));
+                                }
                             }
                         }
                     }
@@ -792,8 +812,13 @@ impl GraphBuilder {
                     if self.definitions.contains_key(scope)
                         && !crate::graph::resolvers::is_ancestor(&resolved, scope)
                     {
-                        self.ensure_external_node(&resolved);
-                        self.edges.insert(EdgeData::new(scope, &resolved, "calls"));
+                        let top = resolved.split('.').next().unwrap_or(&resolved);
+                        if !self.local_prefixes.contains(top) {
+                            self.ensure_external_node(&resolved);
+                        }
+                        if self.definitions.contains_key(&resolved) {
+                            self.edges.insert(EdgeData::new(scope, &resolved, "calls"));
+                        }
                     }
                 }
             }
