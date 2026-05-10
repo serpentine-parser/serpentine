@@ -17,6 +17,14 @@ fn extract_call_args(call_text: &str) -> Vec<String> {
         .collect()
 }
 
+fn extract_identifier_refs(text: &str) -> Vec<String> {
+    text.split(|c: char| !c.is_alphanumeric() && c != '_')
+        .filter(|s: &&str| !s.is_empty())
+        .filter(|s: &&str| s.chars().next().map(|c| !c.is_ascii_digit()).unwrap_or(false))
+        .map(String::from)
+        .collect()
+}
+
 fn fnv1a_hash(s: &str) -> String {
     let mut hash: u64 = 0xcbf29ce484222325;
     for byte in s.bytes() {
@@ -542,6 +550,28 @@ impl GraphBuilder {
                                 && self.definitions.contains_key(&resolved_arg)
                             {
                                 self.edges.insert(EdgeData::new(source_qualname, &resolved_arg, "calls"));
+                            }
+                        }
+                    }
+                } else if target_category == "name" && !target_text.is_empty() {
+                    if let Some(resolved) = self.resolve_name_legb(scope, target_text) {
+                        if source_qualname != resolved
+                            && !crate::graph::resolvers::is_ancestor(&resolved, source_qualname)
+                            && self.definitions.contains_key(source_qualname)
+                            && self.definitions.contains_key(&resolved)
+                        {
+                            self.edges.insert(EdgeData::new(source_qualname, &resolved, "references"));
+                        }
+                    }
+                } else if matches!(target_category, "expression" | "attribute" | "collection") && !target_text.is_empty() {
+                    for name in extract_identifier_refs(target_text) {
+                        if let Some(resolved) = self.resolve_name_legb(scope, &name) {
+                            if source_qualname != resolved
+                                && !crate::graph::resolvers::is_ancestor(&resolved, source_qualname)
+                                && self.definitions.contains_key(source_qualname)
+                                && self.definitions.contains_key(&resolved)
+                            {
+                                self.edges.insert(EdgeData::new(source_qualname, &resolved, "references"));
                             }
                         }
                     }

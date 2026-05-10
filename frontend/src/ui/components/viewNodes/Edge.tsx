@@ -6,7 +6,7 @@ import { getEdgeState } from "@ui/lib/nodeStyles";
 export type EdgeData = {
   source: string;
   target: string;
-  type: "calls" | "is-a" | "has-a";
+  type: "calls" | "is-a" | "has-a" | "references";
   changeStatus?: "added" | "deleted" | null;
 };
 
@@ -169,7 +169,10 @@ const Edge = ({ dataKey, edge, nodes, selectedNodeId, edgeCurvature, edgeStrokeW
       style={{
         strokeWidth: edgeStrokeWidth,
         strokeDasharray:
-          edge.type === "is-a" ? "5,5" : edge.type === "has-a" ? "2,3" : "none",
+          edge.type === "is-a" ? "5,5"
+          : edge.type === "has-a" ? "2,3"
+          : edge.type === "references" ? "4,2"
+          : "none",
         ...(changeEdgeColor && edgeState !== "highlighted"
           ? { stroke: changeEdgeColor }
           : {}),

@@ -53,6 +53,7 @@ export const EDGE_COLORS: Record<string, EdgeColor> = {
   uses: { light: "#0891b2", dark: "#06b6d4" },
   "is-a": { light: "#7c3aed", dark: "#8b5cf6" },
   "has-a": { light: "#0891b2", dark: "#06b6d4" },
+  references: { light: "#d97706", dark: "#f59e0b" },
   data: { light: "#0891b2", dark: "#06b6d4" },
 };
 

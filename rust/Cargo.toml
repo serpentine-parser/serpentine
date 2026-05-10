@@ -5,7 +5,7 @@ edition = "2021"
 
 [lib]
 name = "serpentine"
-crate-type = ["cdylib"]
+crate-type = ["cdylib", "rlib"]
 
 [dependencies]
 tree-sitter = "0.20"
