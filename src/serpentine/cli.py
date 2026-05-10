@@ -12,6 +12,7 @@ import json
 import threading
 import time
 import webbrowser
+from importlib.resources import files
 from pathlib import Path
 from typing import Any
 
@@ -23,6 +24,34 @@ from serpentine.selector import GraphSelector, filter_by_state
 from serpentine.server import create_app
 from serpentine.state import GraphStateManager
 from serpentine.watcher import FileWatcher
+
+DEFAULT_CONFIG_TEMPLATE = """analysis:
+  extensions:
+    - .py
+    - .js
+    - .jsx
+    - .ts
+    - .tsx
+    - .rs
+  exclude_dirs:
+    - __pycache__
+    - .git
+    - .venv
+    - venv
+    - node_modules
+    - .mypy_cache
+    - .pytest_cache
+    - .tox
+    - dist
+    - build
+    - static
+    - .next
+    - .nuxt
+    - coverage
+    - .egg-info
+    - target
+  exclude_patterns: []
+"""
 
 
 @click.group()
@@ -125,6 +154,41 @@ def serve(
     finally:
         if watcher:
             watcher.stop()
+
+
+@main.command()
+@click.argument(
+    "path",
+    type=click.Path(file_okay=False, dir_okay=True, path_type=Path),
+    default=Path("."),
+)
+@click.option(
+    "--force",
+    is_flag=True,
+    default=False,
+    help="Overwrite existing Serpentine init files",
+)
+def init(path: Path, force: bool) -> None:
+    """Initialize Serpentine files in a project directory.
+
+    Creates the Claude Code slash command at `.claude/commands/serpentine.md`
+    and scaffolds `.serpentine.yml` if either file does not already exist.
+    """
+    project_path = path.resolve()
+    commands_dir = project_path / ".claude" / "commands"
+    command_path = commands_dir / "serpentine.md"
+    config_path = project_path / ".serpentine.yml"
+
+    commands_dir.mkdir(parents=True, exist_ok=True)
+
+    command_template = (
+        files("serpentine.templates.claude.commands")
+        .joinpath("serpentine.md")
+        .read_text()
+    )
+
+    _write_init_file(command_path, command_template, force)
+    _write_init_file(config_path, DEFAULT_CONFIG_TEMPLATE, force)
 
 
 @main.command()
@@ -547,6 +611,16 @@ def _strip_cfg(nodes: list[dict[str, Any]]) -> None:
     for node in nodes:
         node.pop("cfg", None)
         _strip_cfg(node.get("children", []))
+
+
+def _write_init_file(path: Path, content: str, force: bool) -> None:
+    """Write an init file without overwriting unless requested."""
+    if path.exists() and not force:
+        click.echo(f"Exists: {path}")
+        return
+
+    path.write_text(content)
+    click.echo(f"Wrote: {path}")
 
 
 def _get_static_dir() -> Path:
