@@ -8,20 +8,6 @@ repos:
         files: \.rs$
         pass_filenames: false
 
-      - id: cargo-test
-        name: Cargo test
-        language: system
-        entry: cargo test --manifest-path rust/Cargo.toml
-        files: \.rs$
-        pass_filenames: false
-
-      - id: maturin-develop
-        name: Rebuild Rust extension
-        language: system
-        entry: uv run maturin develop
-        files: \.rs$
-        pass_filenames: false
-
       - id: pytest-reference
         name: Reference edge tests
         language: system

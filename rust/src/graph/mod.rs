@@ -231,7 +231,7 @@ mod tests {
         }
 
         let mut builder = GraphBuilder::new();
-        builder.local_prefixes = vec!["myproject".to_string()];
+        builder.local_prefixes = ["myproject".to_string()].into_iter().collect();
         builder.lang_configs = vec![Box::new(TestConfig)];
 
         assert_eq!(builder.classify_module("myproject.app"), Origin::Local);

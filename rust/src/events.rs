@@ -483,6 +483,7 @@ impl Event {
     }
 
     /// Helper to create a Decorator event
+    #[allow(clippy::too_many_arguments)]
     pub fn decorator(
         decorated_fn_id: String,
         name: String,

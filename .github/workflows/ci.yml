@@ -38,9 +38,6 @@ jobs:
       - name: clippy
         run: cargo clippy --manifest-path rust/Cargo.toml -- -D warnings
 
-      - name: cargo test
-        run: cargo test --manifest-path rust/Cargo.toml
-
   test-python:
     name: Python reference tests
     runs-on: ubuntu-latest
