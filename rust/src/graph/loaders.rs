@@ -218,6 +218,50 @@ impl GraphBuilder {
         }
     }
 
+    /// Load decorator events and emit graph edges.
+    ///
+    /// Must run AFTER `load_import_bindings` (needs `import_bindings` for LEGB resolution).
+    ///
+    /// - Attribute-form decorator (`@obj.method`) where `obj` resolves to a local def
+    ///   → `has-a` edge: `obj → decorated_fn` (containment/registration)
+    /// - All other decorators → `references` edge: `decorated_fn → decorator_root` (use)
+    pub fn load_decorators(&mut self, data: &Value) {
+        let decorators = match data.get("decorators").and_then(|d| d.as_array()) {
+            Some(arr) => arr.clone(),
+            None => return,
+        };
+        for dec in &decorators {
+            let decorated_fn = dec.get("decorated_fn").and_then(|v| v.as_str()).unwrap_or("");
+            let root = dec.get("root").and_then(|v| v.as_str()).unwrap_or("");
+            let is_attribute = dec.get("is_attribute").and_then(|v| v.as_bool()).unwrap_or(false);
+
+            if root.is_empty() || decorated_fn.is_empty() {
+                continue;
+            }
+
+            let resolved = self.resolve_name_legb(decorated_fn, root);
+
+            if is_attribute {
+                if let Some(ref local_def) = resolved {
+                    if self.definitions.contains_key(local_def.as_str()) {
+                        self.ensure_parent_nodes(decorated_fn);
+                        self.edges.insert(EdgeData::new(local_def, decorated_fn, "has-a"));
+                        continue;
+                    }
+                }
+            }
+
+            // Fallback: references edge from decorated_fn → decorator root
+            if let Some(ref local_def) = resolved {
+                if self.definitions.contains_key(local_def.as_str())
+                    && self.definitions.contains_key(decorated_fn)
+                {
+                    self.edges.insert(EdgeData::new(decorated_fn, local_def, "references"));
+                }
+            }
+        }
+    }
+
     /// Scan all import data for __init__.py files and build a re-export map.
     ///
     /// When `server/__init__.py` does `from serpentine.server.app import create_app`,
@@ -711,14 +755,15 @@ impl GraphBuilder {
                 .collect();
 
             for old_edge in &edges_to_retype {
-                self.edges.remove(old_edge);
                 if let Some(new_callee) = self.function_return_types.get(&old_edge.callee) {
+                    self.edges.remove(old_edge);
                     self.edges.insert(EdgeData::new(
                         &old_edge.caller,
                         new_callee,
                         "has-a",
                     ));
                 }
+                // No known return type — keep the edge as-is (may be a decorator registration)
             }
 
             if !edges_to_retype.is_empty() {

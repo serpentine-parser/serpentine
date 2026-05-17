@@ -22,15 +22,15 @@ Serpentine builds a **code reference graph** for Python, JavaScript/TypeScript, 
 
 ### What counts as a code reference?
 
-Most developers use "dependency" to mean a package in `requirements.txt` or an OOP relationship. Serpentine tracks something more precise: every place one named entity statically mentions another by name, resolved through the language's scoping rules to the specific definition it refers to.
+Serpentine tracks every place one named entity statically mentions another by name, resolved through the language's scoping rules to the specific definition it refers to.
 
-| Reference type | Example | Edge |
-|---|---|---|
-| Function call | `result = parse(data)` | `result --calls--> parse` |
-| Constructor | `loader = CSVLoader(path)` | `loader --has-a--> CSVLoader` |
-| Name reference | `default = MISSING` | `default --references--> MISSING` |
-| Inheritance | `class Stats(Base)` | `Stats --is-a--> Base` |
-| Expression | `total = a + b` | `total --references--> a`, `total --references--> b` |
+| Reference type | Example                    | Edge                                                 |
+| -------------- | -------------------------- | ---------------------------------------------------- |
+| Function call  | `result = parse(data)`     | `result --calls--> parse`                            |
+| Constructor    | `loader = CSVLoader(path)` | `loader --has-a--> CSVLoader`                        |
+| Name reference | `default = MISSING`        | `default --references--> MISSING`                    |
+| Inheritance    | `class Stats(Base)`        | `Stats --is-a--> Base`                               |
+| Expression     | `total = a + b`            | `total --references--> a`, `total --references--> b` |
 
 All four edge types (`calls`, `has-a`, `references`, `is-a`) resolve through imports — so a reference to an imported name traces all the way back to its definition in the source module.
 
@@ -266,12 +266,12 @@ serpentine analyze --select "+src.auth.*+" --edges-only --pretty
 
 Each edge has a `from` and `to` field with node IDs, and a `type` field:
 
-| Type | Meaning |
-|---|---|
-| `calls` | One entity calls another as a function |
-| `has-a` | A variable holds an instance of a class (constructor call) |
+| Type         | Meaning                                                                          |
+| ------------ | -------------------------------------------------------------------------------- |
+| `calls`      | One entity calls another as a function                                           |
+| `has-a`      | A variable holds an instance of a class (constructor call)                       |
 | `references` | One entity names another without calling it (assignment, annotation, expression) |
-| `is-a` | Inheritance — one class extends another |
+| `is-a`       | Inheritance — one class extends another                                          |
 
 ---
 

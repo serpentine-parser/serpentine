@@ -177,6 +177,8 @@ pub enum Event {
     Decorator {
         node_id: String,
         name: String,           // The full decorator expression text (@click.command → "click.command")
+        root: String,           // First identifier: "click" for @click.command, "staticmethod" for @staticmethod
+        is_attribute: bool,     // True if decorator is in dotted attribute form (@obj.something)
         is_call: bool,          // True if decorator is invoked (@click.command())
         arguments: Vec<String>, // Arguments if is_call
         file: String,
@@ -481,11 +483,22 @@ impl Event {
     }
 
     /// Helper to create a Decorator event
-    pub fn decorator(name: String, is_call: bool, arguments: Vec<String>, node: Node, file: &str) -> Self {
+    pub fn decorator(
+        decorated_fn_id: String,
+        name: String,
+        root: String,
+        is_attribute: bool,
+        is_call: bool,
+        arguments: Vec<String>,
+        node: Node,
+        file: &str,
+    ) -> Self {
         let pos = node.start_position();
         Event::Decorator {
-            node_id: generate_node_id(file, node),
+            node_id: decorated_fn_id,
             name,
+            root,
+            is_attribute,
             is_call,
             arguments,
             file: file.to_string(),

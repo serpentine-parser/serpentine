@@ -578,17 +578,21 @@ fn emit_decorator(ctx: &mut Ctx, node: Node, events: &mut Vec<Event>) {
         match child.kind() {
             "identifier" => {
                 let name = ctx.get_text(child).to_string();
-                events.push(Event::decorator(name, false, vec![], node, ctx.file_path));
+                let root = name.clone();
+                events.push(Event::decorator(String::new(), name, root, false, false, vec![], node, ctx.file_path));
             }
             "member_expression" => {
                 let name = ctx.get_text(child).to_string();
-                events.push(Event::decorator(name, false, vec![], node, ctx.file_path));
+                let root = name.split('.').next().unwrap_or(&name).to_string();
+                events.push(Event::decorator(String::new(), name, root, true, false, vec![], node, ctx.file_path));
             }
             "call_expression" => {
                 let callee = child
                     .child_by_field_name("function")
                     .map(|n| ctx.get_text(n).to_string())
                     .unwrap_or_default();
+                let is_attribute = callee.contains('.');
+                let root = callee.split('.').next().unwrap_or(&callee).to_string();
                 let mut args = Vec::new();
                 if let Some(args_node) = child.child_by_field_name("arguments") {
                     let mut c = args_node.walk();
@@ -605,7 +609,7 @@ fn emit_decorator(ctx: &mut Ctx, node: Node, events: &mut Vec<Event>) {
                         }
                     }
                 }
-                events.push(Event::decorator(callee, true, args, node, ctx.file_path));
+                events.push(Event::decorator(String::new(), callee, root, is_attribute, true, args, node, ctx.file_path));
             }
             _ => {}
         }
