@@ -28,6 +28,22 @@ cd frontend && npm install && npm run build && cd ..
 uv run serpentine stats .
 ```
 
+### Pre-commit hooks
+
+This project uses [pre-commit](https://pre-commit.com) to run clippy, cargo test,
+and the Python reference test suite before every commit.
+
+Install once after cloning:
+
+```bash
+pip install pre-commit
+pre-commit install
+```
+
+On commits touching Rust files, the full suite runs (~30–60s). On commits touching
+only Python files, just the pytest suite runs. To skip hooks for a work-in-progress
+commit: `git commit --no-verify`.
+
 ### Development Workflow
 
 [Tilt](https://tilt.dev) is the easiest way to develop — it watches for changes and rebuilds automatically:
@@ -60,7 +76,13 @@ See [CLAUDE.md](CLAUDE.md) for a detailed architecture overview.
 
 ### Rust (parser/analyzer)
 
-The Rust analyzer uses a message bus pattern. Each parser emits events (`ImportStatement`, `UseName`, `CallExpression`) that subscribers process in parallel.
+The Rust analyzer uses a message bus pattern. Each language parser walks its AST and emits three core events that subscribers process in parallel:
+
+- `ImportStatement` — records what names are imported from which modules (builds the LEGB G-level namespace)
+- `UseName` — fires for every identifier appearing in expression (use) position; feeds name resolution → code reference edges
+- `CallExpression` — fires for every function or constructor call; feeds `calls` and `has-a` edge creation
+
+All three are required for complete code reference resolution. A parser that only emits imports will produce edges at the module level only, missing call-level and variable-level references.
 
 - Parsers live in `rust/src/python/`, `rust/src/javascript/`, `rust/src/rust_lang/`
 - Subscribers live in `rust/src/subscribers/`

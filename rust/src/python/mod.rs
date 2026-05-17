@@ -187,9 +187,21 @@ pub fn derive_module_path(file_path: &str) -> Vec<String> {
                 break;
             }
 
-            // Stop if this directory is not a Python package (no __init__.py)
-            if !dir.join("__init__.py").exists() {
-                break;
+            // Stop if this directory is not a Python package (no __init__.py).
+            // For directories that don't exist on disk (virtual/in-memory paths used in
+            // tests), we can't check __init__.py — include them only if their parent also
+            // doesn't exist (i.e., we're still inside the virtual subtree). Stop as soon
+            // as we reach a real directory that lacks __init__.py.
+            if dir.exists() {
+                if !dir.join("__init__.py").exists() {
+                    break;
+                }
+            } else {
+                // Virtual directory: stop if parent is a real directory (we've reached
+                // the boundary between virtual and real filesystem).
+                if dir.parent().map(|p| p.exists()).unwrap_or(true) {
+                    break;
+                }
             }
 
             // This is a Python package directory, include it
@@ -261,7 +273,10 @@ fn walk_node_python(ctx: &ParseContext, node: Node, events: &mut Vec<Event>) {
     // Call events are also emitted POST so that nested calls (arguments evaluated
     // before the outer call) fire in the correct execution order.
     // e.g. car.drive(math.sqrt(25)): math.sqrt fires first (argument), then car.drive.
-    let is_call = kind == "call";
+    // Calls that are direct children of a decorator are handled by the Decorator event;
+    // emitting a CallExpression for them would create spurious edges to external packages.
+    let is_call = kind == "call"
+        && !node.parent().map(|p| p.kind() == "decorator").unwrap_or(false);
 
     // Track control block info for emitting end events
     let control_block_info = match kind {
@@ -483,12 +498,12 @@ fn emit_import_from_events(ctx: &ParseContext, node: Node, events: &mut Vec<Even
                 // from x import *
                 imported_names.push("*".to_string());
             }
-            "dotted_name" | "identifier" => {
+            "dotted_name" | "identifier"
                 // Check if this is an imported name (appears after "import" keyword)
-                if has_passed_import_keyword(ctx, node, child) {
-                    let name = get_node_text(ctx, child);
-                    imported_names.push(name);
-                }
+                if has_passed_import_keyword(ctx, node, child) =>
+            {
+                let name = get_node_text(ctx, child);
+                imported_names.push(name);
             }
             "aliased_import" => {
                 // from x import y as z - extract original name and alias
@@ -709,22 +724,6 @@ fn emit_function_events(ctx: &ParseContext, node: Node, events: &mut Vec<Event>)
                     _ => {} // Skip commas, parentheses, etc.
                 }
             }
-        }
-
-        // Feature 7: Emit UseName for type annotations in parameters and return type.
-        // These act as secondary type-reference edges (e.g., def f(x: Config) → uses Config).
-        if let Some(params_node) = node.child_by_field_name("parameters") {
-            let mut cursor = params_node.walk();
-            for child in params_node.children(&mut cursor) {
-                if matches!(child.kind(), "typed_parameter" | "typed_default_parameter") {
-                    if let Some(type_node) = child.child_by_field_name("type") {
-                        emit_use_names_recursive(ctx, type_node, events);
-                    }
-                }
-            }
-        }
-        if let Some(return_type_node) = node.child_by_field_name("return_type") {
-            emit_use_names_recursive(ctx, return_type_node, events);
         }
 
         let docstring = extract_body_docstring(ctx, node);
@@ -1274,25 +1273,57 @@ fn is_in_type_checking_block(ctx: &ParseContext, node: Node) -> bool {
     false
 }
 
+/// Compute the qualname of the definition that a `decorator` node decorates.
+/// The decorator's parent is `decorated_definition`; its last relevant child is
+/// `function_definition` or `class_definition`.
+fn decorated_fn_qualname(ctx: &ParseContext, decorator_node: Node) -> String {
+    let parent = match decorator_node.parent() {
+        Some(p) if p.kind() == "decorated_definition" => p,
+        _ => return String::new(),
+    };
+    let mut cursor = parent.walk();
+    for child in parent.children(&mut cursor) {
+        match child.kind() {
+            "function_definition" | "class_definition" | "async_function_definition" => {
+                if let Some(name_node) = child.child_by_field_name("name") {
+                    let name = get_node_text(ctx, name_node);
+                    return build_qualname(ctx, child, &name);
+                }
+            }
+            _ => {}
+        }
+    }
+    String::new()
+}
+
 /// Emit events for decorator expressions
 fn emit_decorator_events(ctx: &ParseContext, node: Node, events: &mut Vec<Event>) {
+    let decorated_id = decorated_fn_qualname(ctx, node);
     let mut cursor = node.walk();
     // A decorator node has one child: the expression (@expr)
     for child in node.children(&mut cursor) {
         match child.kind() {
             "identifier" => {
                 let name = get_node_text(ctx, child);
-                events.push(Event::decorator(name, false, vec![], node, ctx.file_path));
+                let root = name.clone();
+                events.push(Event::decorator(
+                    decorated_id.clone(), name, root, false, false, vec![], node, ctx.file_path,
+                ));
             }
             "attribute" => {
                 let name = get_node_text(ctx, child);
-                events.push(Event::decorator(name, false, vec![], node, ctx.file_path));
+                let root = name.split('.').next().unwrap_or(&name).to_string();
+                events.push(Event::decorator(
+                    decorated_id.clone(), name, root, true, false, vec![], node, ctx.file_path,
+                ));
             }
             "call" => {
                 let callee = child
                     .child_by_field_name("function")
                     .map(|n| get_node_text(ctx, n))
                     .unwrap_or_default();
+                let is_attribute = callee.contains('.');
+                let root = callee.split('.').next().unwrap_or(&callee).to_string();
                 let mut args = Vec::new();
                 if let Some(args_node) = child.child_by_field_name("arguments") {
                     let mut c = args_node.walk();
@@ -1308,7 +1339,9 @@ fn emit_decorator_events(ctx: &ParseContext, node: Node, events: &mut Vec<Event>
                         }
                     }
                 }
-                events.push(Event::decorator(callee, true, args, node, ctx.file_path));
+                events.push(Event::decorator(
+                    decorated_id.clone(), callee, root, is_attribute, true, args, node, ctx.file_path,
+                ));
             }
             _ => {}
         }

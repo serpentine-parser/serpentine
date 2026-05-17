@@ -17,6 +17,14 @@ fn extract_call_args(call_text: &str) -> Vec<String> {
         .collect()
 }
 
+fn extract_identifier_refs(text: &str) -> Vec<String> {
+    text.split(|c: char| !c.is_alphanumeric() && c != '_')
+        .filter(|s: &&str| !s.is_empty())
+        .filter(|s: &&str| s.chars().next().map(|c| !c.is_ascii_digit()).unwrap_or(false))
+        .map(String::from)
+        .collect()
+}
+
 fn fnv1a_hash(s: &str) -> String {
     let mut hash: u64 = 0xcbf29ce484222325;
     for byte in s.bytes() {
@@ -35,26 +43,48 @@ impl GraphBuilder {
                 self.process_scope_node(file, true);
             }
         }
+    }
 
-        // Second pass: create is-a edges from class inheritance after all definitions loaded
+    /// Resolve and create is-a edges from class inheritance.
+    ///
+    /// Must be called AFTER `load_import_bindings` so that base class names can
+    /// be resolved through LEGB (e.g., `class B(Base)` where `Base` is imported).
+    pub fn resolve_inheritance_edges(&mut self, data: &Value) {
         if let Some(files) = data.get("files").and_then(|f| f.as_array()) {
             for file in files {
-                self.collect_inheritance_edges(file);
+                self.collect_inheritance_edges_resolved(file);
             }
         }
     }
 
-    fn collect_inheritance_edges(&mut self, node: &Value) {
+    fn collect_inheritance_edges_resolved(&mut self, node: &Value) {
         let scope_type = node.get("scope_type").and_then(|t| t.as_str()).unwrap_or("");
         let qualname = node.get("qualname").and_then(|q| q.as_str()).unwrap_or("");
 
         if scope_type == "class" && !qualname.is_empty() {
+            // Derive the enclosing scope: strip the class name from its qualname
+            let scope = qualname
+                .rsplit_once('.')
+                .map(|(parent, _)| parent)
+                .unwrap_or(qualname);
+
             if let Some(bases) = node.get("bases").and_then(|b| b.as_array()) {
                 for base in bases {
                     if let Some(base_name) = base.as_str() {
-                        if !base_name.is_empty() && base_name != "object" {
-                            self.ensure_import_target(base_name);
-                            self.edges.insert(EdgeData::new(qualname, base_name, "is-a"));
+                        if base_name.is_empty() || base_name == "object" {
+                            continue;
+                        }
+                        // Resolve base via LEGB so "A" → "mymod.A" and imported
+                        // names like "Base" → "pkg.base.Base".
+                        let resolved = self
+                            .resolve_name_legb(scope, base_name)
+                            .unwrap_or_else(|| base_name.to_string());
+                        let top = resolved.split('.').next().unwrap_or(&resolved);
+                        if !self.local_prefixes.contains(top) {
+                            self.ensure_external_node(&resolved);
+                        }
+                        if self.definitions.contains_key(&resolved) {
+                            self.edges.insert(EdgeData::new(qualname, &resolved, "is-a"));
                         }
                     }
                 }
@@ -64,7 +94,7 @@ impl GraphBuilder {
         // Recurse into children
         if let Some(children) = node.get("children").and_then(|c| c.as_array()) {
             for child in children {
-                self.collect_inheritance_edges(child);
+                self.collect_inheritance_edges_resolved(child);
             }
         }
     }
@@ -178,11 +208,55 @@ impl GraphBuilder {
                             {
                                 // Check if target is not a parent of source (hierarchy already shows that)
                                 if !scope.starts_with(&format!("{}.", resolved)) {
-                                    self.edges.insert(EdgeData::new(scope, &resolved, "calls"));
+                                    self.edges.insert(EdgeData::new(scope, &resolved, "references"));
                                 }
                             }
                         }
                     }
+                }
+            }
+        }
+    }
+
+    /// Load decorator events and emit graph edges.
+    ///
+    /// Must run AFTER `load_import_bindings` (needs `import_bindings` for LEGB resolution).
+    ///
+    /// - Attribute-form decorator (`@obj.method`) where `obj` resolves to a local def
+    ///   → `has-a` edge: `obj → decorated_fn` (containment/registration)
+    /// - All other decorators → `references` edge: `decorated_fn → decorator_root` (use)
+    pub fn load_decorators(&mut self, data: &Value) {
+        let decorators = match data.get("decorators").and_then(|d| d.as_array()) {
+            Some(arr) => arr.clone(),
+            None => return,
+        };
+        for dec in &decorators {
+            let decorated_fn = dec.get("decorated_fn").and_then(|v| v.as_str()).unwrap_or("");
+            let root = dec.get("root").and_then(|v| v.as_str()).unwrap_or("");
+            let is_attribute = dec.get("is_attribute").and_then(|v| v.as_bool()).unwrap_or(false);
+
+            if root.is_empty() || decorated_fn.is_empty() {
+                continue;
+            }
+
+            let resolved = self.resolve_name_legb(decorated_fn, root);
+
+            if is_attribute {
+                if let Some(ref local_def) = resolved {
+                    if self.definitions.contains_key(local_def.as_str()) {
+                        self.ensure_parent_nodes(decorated_fn);
+                        self.edges.insert(EdgeData::new(local_def, decorated_fn, "has-a"));
+                        continue;
+                    }
+                }
+            }
+
+            // Fallback: references edge from decorated_fn → decorator root
+            if let Some(ref local_def) = resolved {
+                if self.definitions.contains_key(local_def.as_str())
+                    && self.definitions.contains_key(decorated_fn)
+                {
+                    self.edges.insert(EdgeData::new(decorated_fn, local_def, "references"));
                 }
             }
         }
@@ -545,6 +619,36 @@ impl GraphBuilder {
                             }
                         }
                     }
+                } else if target_category == "name" && !target_text.is_empty() {
+                    if let Some(resolved) = self.resolve_name_legb(scope, target_text) {
+                        let top = resolved.split('.').next().unwrap_or(&resolved);
+                        if !self.local_prefixes.contains(top) {
+                            self.ensure_external_node(&resolved);
+                        }
+                        if source_qualname != resolved
+                            && !crate::graph::resolvers::is_ancestor(&resolved, source_qualname)
+                            && (self.definitions.contains_key(source_qualname)
+                                || self.definitions.contains_key(&resolved))
+                        {
+                            self.edges.insert(EdgeData::new(source_qualname, &resolved, "references"));
+                        }
+                    }
+                } else if matches!(target_category, "expression" | "attribute" | "collection") && !target_text.is_empty() {
+                    for name in extract_identifier_refs(target_text) {
+                        if let Some(resolved) = self.resolve_name_legb(scope, &name) {
+                            let top = resolved.split('.').next().unwrap_or(&resolved);
+                            if !self.local_prefixes.contains(top) {
+                                self.ensure_external_node(&resolved);
+                            }
+                            if source_qualname != resolved
+                                && !crate::graph::resolvers::is_ancestor(&resolved, source_qualname)
+                                && (self.definitions.contains_key(source_qualname)
+                                    || self.definitions.contains_key(&resolved))
+                            {
+                                self.edges.insert(EdgeData::new(source_qualname, &resolved, "references"));
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -651,14 +755,15 @@ impl GraphBuilder {
                 .collect();
 
             for old_edge in &edges_to_retype {
-                self.edges.remove(old_edge);
                 if let Some(new_callee) = self.function_return_types.get(&old_edge.callee) {
+                    self.edges.remove(old_edge);
                     self.edges.insert(EdgeData::new(
                         &old_edge.caller,
                         new_callee,
                         "has-a",
                     ));
                 }
+                // No known return type — keep the edge as-is (may be a decorator registration)
             }
 
             if !edges_to_retype.is_empty() {
@@ -809,15 +914,40 @@ impl GraphBuilder {
                     .unwrap_or("");
 
                 if let Some(resolved) = self.resolve_callee(scope, callee_text) {
-                    if self.definitions.contains_key(scope)
-                        && !crate::graph::resolvers::is_ancestor(&resolved, scope)
+                    // For dotted callees like `obj.method`, use the resolved receiver
+                    // variable (obj → mymod.obj) as the edge source so the edge reads
+                    // "obj calls method" rather than "module calls method".
+                    let caller: String = if callee_text.contains('.') {
+                        let first = callee_text.split('.').next().unwrap_or("");
+                        if !first.is_empty() {
+                            if let Some(recv) = self.resolve_name_legb(scope, first) {
+                                let top = recv.split('.').next().unwrap_or(&recv);
+                                if self.local_prefixes.contains(top)
+                                    && self.definitions.contains_key(&recv)
+                                {
+                                    recv
+                                } else {
+                                    scope.to_string()
+                                }
+                            } else {
+                                scope.to_string()
+                            }
+                        } else {
+                            scope.to_string()
+                        }
+                    } else {
+                        scope.to_string()
+                    };
+
+                    if (self.definitions.contains_key(scope) || caller != scope)
+                        && !crate::graph::resolvers::is_ancestor(&resolved, &caller)
                     {
                         let top = resolved.split('.').next().unwrap_or(&resolved);
                         if !self.local_prefixes.contains(top) {
                             self.ensure_external_node(&resolved);
                         }
                         if self.definitions.contains_key(&resolved) {
-                            self.edges.insert(EdgeData::new(scope, &resolved, "calls"));
+                            self.edges.insert(EdgeData::new(&caller, &resolved, "calls"));
                         }
                     }
                 }

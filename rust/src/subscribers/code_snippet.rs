@@ -90,18 +90,16 @@ impl Subscriber for CodeSnippetSubscriber {
                 line,
                 end_line,
                 ..
-            } => {
+            } if node_type != "function" && node_type != "class" => {
                 // Functions and classes are handled by EnterScope/ExitScope
-                if node_type != "function" && node_type != "class" {
-                    self.scope_ranges.insert(
-                        qualname.clone(),
-                        ScopeRange {
-                            file: file.clone(),
-                            start_line: *line,
-                            end_line: *end_line,
-                        },
-                    );
-                }
+                self.scope_ranges.insert(
+                    qualname.clone(),
+                    ScopeRange {
+                        file: file.clone(),
+                        start_line: *line,
+                        end_line: *end_line,
+                    },
+                );
             }
 
             _ => {}

@@ -494,62 +494,62 @@ fn emit_identifier_use(ctx: &Ctx, node: Node, events: &mut Vec<Event>) {
     if let Some(parent) = node.parent() {
         match parent.kind() {
             // Skip: declarator name (const FOO = ...)
-            "variable_declarator" => {
-                if parent.child_by_field_name("name").is_some_and(|n| n.id() == node.id()) {
-                    return;
-                }
+            "variable_declarator"
+                if parent.child_by_field_name("name").is_some_and(|n| n.id() == node.id()) =>
+            {
+                return;
             }
             // Skip: function / generator declaration name
             "function_declaration" | "generator_function_declaration"
-            | "function" | "generator_function" => {
-                if parent.child_by_field_name("name").is_some_and(|n| n.id() == node.id()) {
-                    return;
-                }
+            | "function" | "generator_function"
+                if parent.child_by_field_name("name").is_some_and(|n| n.id() == node.id()) =>
+            {
+                return;
             }
             // Skip: class declaration name
-            "class_declaration" | "class" | "abstract_class_declaration" => {
-                if parent.child_by_field_name("name").is_some_and(|n| n.id() == node.id()) {
-                    return;
-                }
+            "class_declaration" | "class" | "abstract_class_declaration"
+                if parent.child_by_field_name("name").is_some_and(|n| n.id() == node.id()) =>
+            {
+                return;
             }
             // Skip: method / property signature name
             "method_definition" | "method_signature" | "property_signature"
-            | "public_field_definition" => {
-                if parent.child_by_field_name("name").is_some_and(|n| n.id() == node.id()) {
-                    return;
-                }
+            | "public_field_definition"
+                if parent.child_by_field_name("name").is_some_and(|n| n.id() == node.id()) =>
+            {
+                return;
             }
             // Skip: all import binding positions
             "import_clause" | "import_specifier" | "namespace_import" => return,
             // Skip: export specifier  (export { X })
             "export_specifier" => return,
             // Skip: labeled statement label
-            "labeled_statement" => {
-                if parent.child_by_field_name("label").is_some_and(|n| n.id() == node.id()) {
-                    return;
-                }
+            "labeled_statement"
+                if parent.child_by_field_name("label").is_some_and(|n| n.id() == node.id()) =>
+            {
+                return;
             }
             // Skip: member-expression property  (obj.PROP — not LEGB-resolvable)
             // The object part (obj) is NOT skipped and will fire separately.
-            "member_expression" => {
-                if parent.child_by_field_name("property").is_some_and(|n| n.id() == node.id()) {
-                    return;
-                }
+            "member_expression"
+                if parent.child_by_field_name("property").is_some_and(|n| n.id() == node.id()) =>
+            {
+                return;
             }
             // Skip: object literal key  { key: value }
-            "pair" => {
-                if parent.child_by_field_name("key").is_some_and(|n| n.id() == node.id()) {
-                    return;
-                }
+            "pair"
+                if parent.child_by_field_name("key").is_some_and(|n| n.id() == node.id()) =>
+            {
+                return;
             }
             // Skip: TypeScript type parameter declaration
             "type_parameter" => return,
             // Skip: TypeScript parameter names — the `name` field is a definition, not a use.
             // The `type` field IS walked (by the required_parameter arm in walk_node).
-            "required_parameter" | "optional_parameter" => {
-                if parent.child_by_field_name("name").is_some_and(|n| n.id() == node.id()) {
-                    return;
-                }
+            "required_parameter" | "optional_parameter"
+                if parent.child_by_field_name("name").is_some_and(|n| n.id() == node.id()) =>
+            {
+                return;
             }
             _ => {}
         }
@@ -572,23 +572,32 @@ fn emit_identifier_use(ctx: &Ctx, node: Node, events: &mut Vec<Event>) {
 /// - `@Identifier`          → Decorator(name, is_call=false)
 /// - `@member.expr`         → Decorator(member.expr, is_call=false)
 /// - `@call_expression(…)`  → Decorator(callee, is_call=true, args)
-fn emit_decorator(ctx: &mut Ctx, node: Node, events: &mut Vec<Event>) {
+///
+/// `decorated_fn_id` is the qualname of the decorated item. Pass an empty string
+/// only as a fallback for decorators in unknown contexts (walk_node default arm).
+fn emit_decorator_for_target(ctx: &mut Ctx, node: Node, decorated_fn_id: &str, events: &mut Vec<Event>) {
     let mut cursor = node.walk();
     for child in node.children(&mut cursor) {
         match child.kind() {
             "identifier" => {
                 let name = ctx.get_text(child).to_string();
-                events.push(Event::decorator(name, false, vec![], node, ctx.file_path));
+                let root = name.clone();
+                events.push(Event::decorator(decorated_fn_id.to_string(), name, root, false, false, vec![], node, ctx.file_path));
             }
             "member_expression" => {
                 let name = ctx.get_text(child).to_string();
-                events.push(Event::decorator(name, false, vec![], node, ctx.file_path));
+                let root = name.split('.').next().unwrap_or(&name).to_string();
+                events.push(Event::decorator(decorated_fn_id.to_string(), name, root, true, false, vec![], node, ctx.file_path));
             }
             "call_expression" => {
+                // Don't recurse into this call_expression — the decorator call is
+                // captured by this Decorator event; a separate CallExpression would duplicate it.
                 let callee = child
                     .child_by_field_name("function")
                     .map(|n| ctx.get_text(n).to_string())
                     .unwrap_or_default();
+                let is_attribute = callee.contains('.');
+                let root = callee.split('.').next().unwrap_or(&callee).to_string();
                 let mut args = Vec::new();
                 if let Some(args_node) = child.child_by_field_name("arguments") {
                     let mut c = args_node.walk();
@@ -605,7 +614,7 @@ fn emit_decorator(ctx: &mut Ctx, node: Node, events: &mut Vec<Event>) {
                         }
                     }
                 }
-                events.push(Event::decorator(callee, true, args, node, ctx.file_path));
+                events.push(Event::decorator(decorated_fn_id.to_string(), callee, root, is_attribute, true, args, node, ctx.file_path));
             }
             _ => {}
         }
@@ -878,8 +887,10 @@ fn walk_node(ctx: &mut Ctx, node: Node, events: &mut Vec<Event>) {
             }
         }
         // ── Decorators (@foo, @foo.bar, @foo()) ─────────────────────────────────
+        // Class/function/method decorators are handled by emit_class/emit_function/emit_method
+        // before their children are walked. This arm is a fallback for other contexts.
         "decorator" => {
-            emit_decorator(ctx, node, events);
+            emit_decorator_for_target(ctx, node, "", events);
         }
         // ── Await expression — pass through to value ─────────────────────────────
         "await_expression" => {
@@ -921,6 +932,16 @@ fn emit_function(ctx: &mut Ctx, node: Node, events: &mut Vec<Event>) {
     };
 
     let qualname = ctx.build_qualname(&name);
+
+    // Emit decorator events before pushing scope — qualname is known, scope not yet open.
+    {
+        let mut cursor = node.walk();
+        for child in node.children(&mut cursor) {
+            if child.kind() == "decorator" {
+                emit_decorator_for_target(ctx, child, &qualname, events);
+            }
+        }
+    }
 
     let params = node
         .child_by_field_name("parameters")
@@ -979,6 +1000,53 @@ fn emit_function(ctx: &mut Ctx, node: Node, events: &mut Vec<Event>) {
     ));
 }
 
+/// Collect base class names from a class declaration node.
+///
+/// Handles two grammar variants:
+/// - tree-sitter-typescript: `class_heritage > extends_clause > value` (field)
+/// - tree-sitter-javascript: `class_heritage > expression` (direct named child)
+///
+/// Only extends-based inheritance produces `is-a` edges; `implements` clauses
+/// are intentionally excluded (interfaces don't imply type identity here).
+fn collect_class_bases(ctx: &Ctx, node: Node) -> Vec<String> {
+    let mut bases = Vec::new();
+    let mut cursor = node.walk();
+    for child in node.children(&mut cursor) {
+        if child.kind() != "class_heritage" {
+            continue;
+        }
+        let mut hc = child.walk();
+        for heritage_child in child.children(&mut hc) {
+            match heritage_child.kind() {
+                "extends_clause" => {
+                    // TypeScript: `_extends_clause_single.value` bubbles up as a `value` field.
+                    if let Some(val) = heritage_child.child_by_field_name("value") {
+                        let text = ctx.get_text(val).to_string();
+                        // Strip generic type arguments: "Foo<Bar>" → "Foo"
+                        let base = text.split('<').next().unwrap_or(&text).trim();
+                        if !base.is_empty() {
+                            bases.push(base.to_string());
+                        }
+                    }
+                }
+                _ if heritage_child.is_named() => {
+                    // JavaScript plain: `class_heritage` > expression (no extends_clause wrapper).
+                    // Skip implements_clause and other non-extends named children.
+                    if heritage_child.kind() != "implements_clause" {
+                        let text = ctx.get_text(heritage_child).to_string();
+                        let base = text.split('<').next().unwrap_or(&text).trim();
+                        if !base.is_empty() {
+                            bases.push(base.to_string());
+                        }
+                    }
+                }
+                _ => {}
+            }
+        }
+    }
+    bases
+}
+
 fn emit_class(ctx: &mut Ctx, node: Node, events: &mut Vec<Event>) {
     let name = match node.child_by_field_name("name") {
         Some(n) => ctx.get_text(n).to_string(),
@@ -987,10 +1055,17 @@ fn emit_class(ctx: &mut Ctx, node: Node, events: &mut Vec<Event>) {
 
     let qualname = ctx.build_qualname(&name);
 
-    let bases = node
-        .child_by_field_name("superclass")
-        .map(|n| vec![ctx.get_text(n).to_string()])
-        .unwrap_or_default();
+    let bases = collect_class_bases(ctx, node);
+
+    // Emit decorator events before pushing scope — qualname is known, scope not yet open.
+    {
+        let mut cursor = node.walk();
+        for child in node.children(&mut cursor) {
+            if child.kind() == "decorator" {
+                emit_decorator_for_target(ctx, child, &qualname, events);
+            }
+        }
+    }
 
     let docstring = extract_jsdoc(node, ctx.source);
     events.push(Event::define_name(
@@ -1043,6 +1118,16 @@ fn emit_method(ctx: &mut Ctx, node: Node, events: &mut Vec<Event>) {
     };
 
     let qualname = ctx.build_qualname(&name);
+
+    // Emit decorator events before pushing scope — qualname is known, scope not yet open.
+    {
+        let mut cursor = node.walk();
+        for child in node.children(&mut cursor) {
+            if child.kind() == "decorator" {
+                emit_decorator_for_target(ctx, child, &qualname, events);
+            }
+        }
+    }
 
     let params = node
         .child_by_field_name("parameters")

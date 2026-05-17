@@ -3,6 +3,7 @@
 //! Each subscriber implements the `Subscriber` trait and processes events
 //! to produce some output (e.g., scope trees, event counts, etc.).
 
+mod decorators;
 mod pdg;
 mod code_snippet;
 mod definitions;
@@ -12,6 +13,7 @@ mod raw_bindings;
 mod scope_tree;
 mod uses;
 
+pub use decorators::DecoratorsSubscriberFactory;
 pub use pdg::PdgSubscriberFactory;
 pub use code_snippet::CodeSnippetSubscriberFactory;
 pub use definitions::DefinitionsSubscriberFactory;

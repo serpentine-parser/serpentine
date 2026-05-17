@@ -109,9 +109,30 @@ pub fn derive_module_path(file_path: &str) -> Vec<String> {
     let crate_dir = match cargo_dir {
         Some(dir) => dir,
         None => {
-            // Fallback: use file stem as module name
-            let stem = path.file_stem().and_then(|s| s.to_str()).unwrap_or("unknown");
-            return vec![stem.to_string()];
+            // Virtual/in-memory path (no Cargo.toml) — collect segments up to the
+            // real/virtual filesystem boundary (same logic as Python parser).
+            let mut parts = Vec::new();
+            let mut current = path.parent();
+            while let Some(dir) = current {
+                let dir_name = match dir.file_name().and_then(|s| s.to_str()) {
+                    Some(n) if !n.is_empty() => n,
+                    _ => break,
+                };
+                if dir.exists() {
+                    break; // reached the real filesystem — stop
+                }
+                // Virtual dir: stop if parent is real (boundary)
+                if dir.parent().map(|p| p.exists()).unwrap_or(true) {
+                    break;
+                }
+                parts.push(dir_name.to_string());
+                current = dir.parent();
+            }
+            parts.reverse();
+            if let Some(stem) = path.file_stem().and_then(|s| s.to_str()) {
+                parts.push(stem.to_string()); // no lib/main/mod suppression for virtual paths
+            }
+            return parts;
         }
     };
 
@@ -179,6 +200,54 @@ impl<'a> ParseContext<'a> {
 // ============================================================================
 // Main Walker
 // ============================================================================
+
+const BUILTIN_RUST_ATTRS: &[&str] = &[
+    "derive", "allow", "warn", "deny", "forbid", "cfg", "cfg_attr", "test", "ignore",
+    "bench", "inline", "cold", "must_use", "no_mangle", "repr", "doc", "feature",
+    "macro_export", "macro_use", "path",
+];
+
+/// Emit a Decorator event for a Rust `attribute_item` node (`#[attr]`).
+/// Skips built-in/compiler attributes that don't produce reference edges.
+fn emit_attribute_as_decorator(
+    ctx: &ParseContext,
+    attr_node: Node,
+    decorated_qualname: &str,
+    events: &mut Vec<Event>,
+) {
+    let full = ctx.get_text(attr_node);
+    let inner = full
+        .strip_prefix("#[")
+        .and_then(|s| s.strip_suffix(']'))
+        .unwrap_or(&full)
+        .trim();
+    if inner.is_empty() {
+        return;
+    }
+    let normalized = inner.replace("::", ".");
+    let root: String = normalized
+        .split(['.', '('])
+        .next()
+        .unwrap_or(&normalized)
+        .trim()
+        .to_string();
+    if root.is_empty() || BUILTIN_RUST_ATTRS.contains(&root.as_str()) {
+        return;
+    }
+    let is_call = normalized.contains('(');
+    // split('(').next() returns everything before the first '(' (or the whole string if none).
+    let name = normalized.split('(').next().unwrap_or("").trim().to_string();
+    events.push(Event::decorator(
+        decorated_qualname.to_string(),
+        name,
+        root,
+        false,
+        is_call,
+        vec![],
+        attr_node,
+        ctx.file_path,
+    ));
+}
 
 fn walk_node(ctx: &ParseContext, node: Node, events: &mut Vec<Event>) {
     let kind = node.kind();
@@ -330,6 +399,24 @@ fn walk_node(ctx: &ParseContext, node: Node, events: &mut Vec<Event>) {
         "for_expression" => Some("for"),
         _ => None,
     };
+
+    // ── Emit attribute decorators for scope-creating items ───────────────────
+
+    if matches!(kind, "function_item" | "struct_item" | "enum_item" | "trait_item") {
+        if let Some((_, _, ref qualname)) = scope_exit {
+            if is_valid_qualname(qualname) {
+                let mut prev = node.prev_sibling();
+                while let Some(sibling) = prev {
+                    if sibling.kind() == "attribute_item" {
+                        emit_attribute_as_decorator(ctx, sibling, qualname, events);
+                        prev = sibling.prev_sibling();
+                    } else {
+                        break;
+                    }
+                }
+            }
+        }
+    }
 
     // ── Emit entry events ────────────────────────────────────────────────────
 
@@ -606,12 +693,28 @@ fn emit_use_events(ctx: &ParseContext, node: Node, events: &mut Vec<Event>) {
 /// Emit Assignment + DefineName for `let` bindings.
 fn emit_let_events(ctx: &ParseContext, node: Node, events: &mut Vec<Event>) {
     let value_node = node.child_by_field_name("value");
-    // Normalize `::` path separators to `.` so that the graph builder's
-    // extract_callable / resolve_callee can match against dot-notation qualnames.
-    let value_text = value_node
-        .map(|v| ctx.get_text(v).replace("::", "."))
-        .unwrap_or_default();
-    let value_type = value_node.map(|v| classify_value_type(v.kind())).unwrap_or("none");
+
+    // Struct expression `S { field: val }` — treat as a constructor call so the
+    // ASSIGNED pass creates a `has-a` edge (not a `references` edge).
+    // Extract the struct type name from the `name` field rather than using the
+    // full literal text (which includes braces and would fail `extract_callable`).
+    let (value_text, value_type) = if let Some(v) = value_node {
+        if v.kind() == "struct_expression" {
+            let struct_name = v
+                .child_by_field_name("name")
+                .map(|n| ctx.get_text(n).replace("::", "."))
+                .unwrap_or_default();
+            if !struct_name.is_empty() {
+                (struct_name, "call")
+            } else {
+                (ctx.get_text(v).replace("::", "."), classify_value_type(v.kind()))
+            }
+        } else {
+            (ctx.get_text(v).replace("::", "."), classify_value_type(v.kind()))
+        }
+    } else {
+        (String::new(), "none")
+    };
 
     if let Some(pat) = node.child_by_field_name("pattern") {
         emit_let_pattern(ctx, pat, node, &value_text, value_type, events);

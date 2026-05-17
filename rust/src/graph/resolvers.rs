@@ -224,9 +224,21 @@ impl GraphBuilder {
     }
 
     /// Extract callable name from call expression like "Car(eng)" -> "Car".
+    /// Handles JavaScript `new` expressions: "new Car(eng)" → "Car".
     /// Also strips Rust constructor suffix: "GraphBuilder.new" -> "GraphBuilder".
     pub(crate) fn extract_callable(&self, call_text: &str) -> String {
-        let base = call_text.split('(').next().unwrap_or(call_text).trim();
+        let trimmed = call_text.trim();
+        // Strip JavaScript `new` keyword: "new Foo(args)" → "Foo(args)"
+        let text = if let Some(rest) = trimmed.strip_prefix("new") {
+            if rest.starts_with(char::is_whitespace) {
+                rest.trim_start()
+            } else {
+                trimmed
+            }
+        } else {
+            trimmed
+        };
+        let base = text.split('(').next().unwrap_or(text).trim();
         // Strip Rust constructor convention: `Type.new` → `Type`
         if let Some(stripped) = base.strip_suffix(".new") {
             stripped.to_string()

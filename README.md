@@ -4,21 +4,35 @@
 
 # Serpentine
 
-Fast dependency graph analysis and visualization for Python, JavaScript/TypeScript, and Rust projects.
+See every reference between every named entity in your codebase — functions, classes, modules, variables — resolved down to the definition.
 
 ![Serpentine UI](docs/screenshot.png)
 
-Serpentine analyzes your codebase using a Rust-powered parser and displays an interactive dependency graph in your browser. It resolves dependencies down to the variable and call level and watches for file changes in real time.
+Serpentine builds a **code reference graph** for Python, JavaScript/TypeScript, and Rust projects. A code reference is when one named entity mentions another by name — a function call, a type annotation, an assignment, an inheritance declaration. Serpentine resolves each reference through the language's scoping rules down to the exact definition it points to, then visualizes the result as an interactive graph that updates in real time as you edit.
 
 ---
 
 ## Features
 
 - **Multi-language**: Python, JavaScript, TypeScript, and Rust
-- **Deep resolution**: Resolves calls and type references, not just import edges
+- **Full reference resolution**: Traces calls, type annotations, assignments, and inheritance — not just import edges
 - **Interactive graph**: Expandable nodes, search, pan/zoom, collapsible modules
 - **Real-time updates**: File watcher pushes changes via WebSocket
 - **Agent-ready CLI**: Structured JSON output with selectors for use in AI agent workflows
+
+### What counts as a code reference?
+
+Serpentine tracks every place one named entity statically mentions another by name, resolved through the language's scoping rules to the specific definition it refers to.
+
+| Reference type | Example                    | Edge                                                 |
+| -------------- | -------------------------- | ---------------------------------------------------- |
+| Function call  | `result = parse(data)`     | `result --calls--> parse`                            |
+| Constructor    | `loader = CSVLoader(path)` | `loader --has-a--> CSVLoader`                        |
+| Name reference | `default = MISSING`        | `default --references--> MISSING`                    |
+| Inheritance    | `class Stats(Base)`        | `Stats --is-a--> Base`                               |
+| Expression     | `total = a + b`            | `total --references--> a`, `total --references--> b` |
+
+All four edge types (`calls`, `has-a`, `references`, `is-a`) resolve through imports — so a reference to an imported name traces all the way back to its definition in the source module.
 
 ---
 
@@ -250,7 +264,14 @@ Use `--edges-only` to get just the edge list (much smaller than the full node tr
 serpentine analyze --select "+src.auth.*+" --edges-only --pretty
 ```
 
-Each edge has a `from` and `to` field with node IDs, and a `type` field (`calls`, `is-a`, or `has-a`).
+Each edge has a `from` and `to` field with node IDs, and a `type` field:
+
+| Type         | Meaning                                                                          |
+| ------------ | -------------------------------------------------------------------------------- |
+| `calls`      | One entity calls another as a function                                           |
+| `has-a`      | A variable holds an instance of a class (constructor call)                       |
+| `references` | One entity names another without calling it (assignment, annotation, expression) |
+| `is-a`       | Inheritance — one class extends another                                          |
 
 ---
 
@@ -381,10 +402,13 @@ uv run serpentine serve --no-browser
 ### Adding a Language
 
 1. Create a parser module in `rust/src/<language>/`
-2. Emit `ImportStatement`, `UseName`, and `CallExpression` events via the message bus
+2. Walk the AST and emit three event types via the message bus:
+   - `ImportStatement` — records what names are imported from which modules
+   - `UseName` — fires for every identifier in expression position (not definition position)
+   - `CallExpression` — fires for every function or constructor invocation
 3. Register the parser in `rust/src/lib.rs`
 
-See `rust/src/python/` for a complete reference implementation and `CONTRIBUTING.md` for full details.
+These three events are the minimum required for the graph builder to resolve all code references in your language. See `rust/src/python/` for a complete reference implementation and `CONTRIBUTING.md` for full details.
 
 ---
 

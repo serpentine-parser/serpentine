@@ -74,7 +74,7 @@ export function transformData(rawData: RawData): TransformedData {
   const transformEdge = (rawEdge: RawEdge): Edge => ({
     source: rawEdge.caller,
     target: rawEdge.callee,
-    type: rawEdge.type as "calls" | "is-a" | "has-a",
+    type: rawEdge.type as "calls" | "is-a" | "has-a" | "references",
     changeStatus: (rawEdge.change_status as "added" | "deleted" | null) ?? null,
   });
 

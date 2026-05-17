@@ -23,9 +23,9 @@ use crate::python::parse as parse_python;
 use crate::python::config::PythonConfig;
 use crate::rust_lang::parse as parse_rust;
 use crate::subscribers::{
-    PdgSubscriberFactory, CodeSnippetSubscriberFactory, DefinitionsSubscriberFactory,
-    EventCounterSubscriberFactory, ImportsSubscriberFactory, RawBindingsSubscriberFactory,
-    ScopeTreeSubscriberFactory, UsesSubscriberFactory,
+    DecoratorsSubscriberFactory, PdgSubscriberFactory, CodeSnippetSubscriberFactory,
+    DefinitionsSubscriberFactory, EventCounterSubscriberFactory, ImportsSubscriberFactory,
+    RawBindingsSubscriberFactory, ScopeTreeSubscriberFactory, UsesSubscriberFactory,
 };
 
 use rayon::prelude::*;
@@ -129,6 +129,7 @@ impl FileEntry {
         message_bus.register(UsesSubscriberFactory::new("uses"));
         message_bus.register(RawBindingsSubscriberFactory::new("raw_bindings"));
         message_bus.register(ImportsSubscriberFactory::new("imports"));
+        message_bus.register(DecoratorsSubscriberFactory::new("decorators"));
         message_bus.register(PdgSubscriberFactory::new("pdg"));
         message_bus.register(CodeSnippetSubscriberFactory::new("code_snippet"));
 
@@ -294,6 +295,7 @@ impl FileManager {
         let mut all_uses: Vec<serde_json::Value> = Vec::new();
         let mut all_raw_bindings: Vec<serde_json::Value> = Vec::new();
         let mut all_imports: Vec<serde_json::Value> = Vec::new();
+        let mut all_decorators: Vec<serde_json::Value> = Vec::new();
         let mut all_pdgs: Vec<serde_json::Value> = Vec::new();
         let mut all_code_snippets: Vec<serde_json::Value> = Vec::new();
 
@@ -306,6 +308,7 @@ impl FileManager {
                     "uses" => all_uses.push(data),
                     "raw_bindings" => all_raw_bindings.push(data),
                     "imports" => all_imports.push(data),
+                    "decorators" => all_decorators.push(data),
                     "pdg" => all_pdgs.push(data),
                     "code_snippet" => all_code_snippets.push(data),
                     _ => {}
@@ -314,8 +317,8 @@ impl FileManager {
         }
 
         // Pass 1: Build nodes — scope tree, definitions, and attach raw PDGs
-        for data in all_scope_trees {
-            builder.load_scope_tree(&data);
+        for data in &all_scope_trees {
+            builder.load_scope_tree(data);
         }
         for data in all_definitions {
             builder.load_definitions(&data);
@@ -333,9 +336,18 @@ impl FileManager {
             builder.load_import_bindings(data);
         }
 
+        // Resolve is-a edges now that import bindings are populated (LEGB can resolve bases).
+        for data in &all_scope_trees {
+            builder.resolve_inheritance_edges(data);
+        }
+
         // Pass 2: Build edges — uses, bindings, and imports (all reference definitions)
         for data in all_uses {
             builder.load_uses(&data);
+        }
+
+        for data in all_decorators {
+            builder.load_decorators(&data);
         }
 
         // Merge all raw bindings into one array — the two-pass ASSIGNED→CALLS
