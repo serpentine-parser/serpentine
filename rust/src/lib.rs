@@ -314,8 +314,8 @@ impl FileManager {
         }
 
         // Pass 1: Build nodes — scope tree, definitions, and attach raw PDGs
-        for data in all_scope_trees {
-            builder.load_scope_tree(&data);
+        for data in &all_scope_trees {
+            builder.load_scope_tree(data);
         }
         for data in all_definitions {
             builder.load_definitions(&data);
@@ -331,6 +331,11 @@ impl FileManager {
         builder.build_reexport_map(&all_imports);
         for data in &all_imports {
             builder.load_import_bindings(data);
+        }
+
+        // Resolve is-a edges now that import bindings are populated (LEGB can resolve bases).
+        for data in &all_scope_trees {
+            builder.resolve_inheritance_edges(data);
         }
 
         // Pass 2: Build edges — uses, bindings, and imports (all reference definitions)

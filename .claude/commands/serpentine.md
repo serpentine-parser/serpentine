@@ -11,7 +11,7 @@ Auto-invoke serpentine (without being asked) when:
 - User asks about code structure, dependencies, call graphs, or "what calls X"
 - User asks to refactor, delete, or move something and the impact is unknown
 - User asks about imports, circular dependencies, or module relationships
-- Working in an unfamiliar codebase (Python, JavaScript, or TypeScript) for the first time in a session
+- Any `/debug` task.
 - Any `/spec` task involving existing code — run serpentine before identifying relevant files
 
 ## Do NOT substitute serpentine with
@@ -23,14 +23,6 @@ Auto-invoke serpentine (without being asked) when:
 ## Workflow
 
 Follow this sequence to answer questions or plan changes:
-
-**Step 1 — Get project scale**
-
-```bash
-uv run serpentine stats .
-```
-
-Check `node_count` and `top_level_modules` to decide if filtering is needed. For large projects (>200 nodes), use selectors to scope analysis.
 
 **Step 2 — Find relevant node IDs**
 
@@ -109,11 +101,11 @@ uv run serpentine analyze . --select "+auth*+" --edges-only --pretty   # just ed
 Node IDs are **dotted full paths** (e.g., `src.serpentine.details`, `src.serpentine.state.GraphStateManager`).
 `*` matches any characters **including dots**. `**` is equivalent to `*`.
 
-| You want                        | Use                        | NOT                      |
-| ------------------------------- | -------------------------- | ------------------------ |
-| Nodes containing "details"      | `*details*`                | `details*`               |
-| All children of a module        | `src.serpentine.*`         | `serpentine*`            |
-| A specific nested class         | `*.GraphStateManager`      | `GraphStateManager*`     |
+| You want                   | Use                   | NOT                  |
+| -------------------------- | --------------------- | -------------------- |
+| Nodes containing "details" | `*details*`           | `details*`           |
+| All children of a module   | `src.serpentine.*`    | `serpentine*`        |
+| A specific nested class    | `*.GraphStateManager` | `GraphStateManager*` |
 
 `details*` only matches nodes whose full ID **starts** with `details` — it misses `src.serpentine.details`.
 

@@ -187,9 +187,21 @@ pub fn derive_module_path(file_path: &str) -> Vec<String> {
                 break;
             }
 
-            // Stop if this directory is not a Python package (no __init__.py)
-            if !dir.join("__init__.py").exists() {
-                break;
+            // Stop if this directory is not a Python package (no __init__.py).
+            // For directories that don't exist on disk (virtual/in-memory paths used in
+            // tests), we can't check __init__.py — include them only if their parent also
+            // doesn't exist (i.e., we're still inside the virtual subtree). Stop as soon
+            // as we reach a real directory that lacks __init__.py.
+            if dir.exists() {
+                if !dir.join("__init__.py").exists() {
+                    break;
+                }
+            } else {
+                // Virtual directory: stop if parent is a real directory (we've reached
+                // the boundary between virtual and real filesystem).
+                if dir.parent().map(|p| p.exists()).unwrap_or(true) {
+                    break;
+                }
             }
 
             // This is a Python package directory, include it
@@ -709,22 +721,6 @@ fn emit_function_events(ctx: &ParseContext, node: Node, events: &mut Vec<Event>)
                     _ => {} // Skip commas, parentheses, etc.
                 }
             }
-        }
-
-        // Feature 7: Emit UseName for type annotations in parameters and return type.
-        // These act as secondary type-reference edges (e.g., def f(x: Config) → uses Config).
-        if let Some(params_node) = node.child_by_field_name("parameters") {
-            let mut cursor = params_node.walk();
-            for child in params_node.children(&mut cursor) {
-                if matches!(child.kind(), "typed_parameter" | "typed_default_parameter") {
-                    if let Some(type_node) = child.child_by_field_name("type") {
-                        emit_use_names_recursive(ctx, type_node, events);
-                    }
-                }
-            }
-        }
-        if let Some(return_type_node) = node.child_by_field_name("return_type") {
-            emit_use_names_recursive(ctx, return_type_node, events);
         }
 
         let docstring = extract_body_docstring(ctx, node);
