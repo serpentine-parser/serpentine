@@ -28,6 +28,22 @@ cd frontend && npm install && npm run build && cd ..
 uv run serpentine stats .
 ```
 
+### Pre-commit hooks
+
+This project uses [pre-commit](https://pre-commit.com) to run clippy, cargo test,
+and the Python reference test suite before every commit.
+
+Install once after cloning:
+
+```bash
+pip install pre-commit
+pre-commit install
+```
+
+On commits touching Rust files, the full suite runs (~30–60s). On commits touching
+only Python files, just the pytest suite runs. To skip hooks for a work-in-progress
+commit: `git commit --no-verify`.
+
 ### Development Workflow
 
 [Tilt](https://tilt.dev) is the easiest way to develop — it watches for changes and rebuilds automatically:
