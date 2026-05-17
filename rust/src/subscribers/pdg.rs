@@ -803,10 +803,8 @@ impl Subscriber for PdgSubscriber {
             Event::ExitScope {
                 scope_type: ScopeType::Class,
                 ..
-            } => {
-                if self.class_depth > 0 {
-                    self.class_depth -= 1;
-                }
+            } if self.class_depth > 0 => {
+                self.class_depth -= 1;
             }
 
             // ------------------------------------------------------------------

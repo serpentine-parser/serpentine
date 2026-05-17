@@ -8,6 +8,13 @@ repos:
         files: \.rs$
         pass_filenames: false
 
+      - id: trufflehog
+        name: TruffleHog secret scan
+        language: system
+        entry: trufflehog git file://. --since-commit HEAD --only-verified --fail
+        pass_filenames: false
+        always_run: true
+
       - id: pytest-reference
         name: Reference edge tests
         language: system

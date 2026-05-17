@@ -498,12 +498,12 @@ fn emit_import_from_events(ctx: &ParseContext, node: Node, events: &mut Vec<Even
                 // from x import *
                 imported_names.push("*".to_string());
             }
-            "dotted_name" | "identifier" => {
+            "dotted_name" | "identifier"
                 // Check if this is an imported name (appears after "import" keyword)
-                if has_passed_import_keyword(ctx, node, child) {
-                    let name = get_node_text(ctx, child);
-                    imported_names.push(name);
-                }
+                if has_passed_import_keyword(ctx, node, child) =>
+            {
+                let name = get_node_text(ctx, child);
+                imported_names.push(name);
             }
             "aliased_import" => {
                 // from x import y as z - extract original name and alias

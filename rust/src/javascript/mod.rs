@@ -494,62 +494,62 @@ fn emit_identifier_use(ctx: &Ctx, node: Node, events: &mut Vec<Event>) {
     if let Some(parent) = node.parent() {
         match parent.kind() {
             // Skip: declarator name (const FOO = ...)
-            "variable_declarator" => {
-                if parent.child_by_field_name("name").is_some_and(|n| n.id() == node.id()) {
-                    return;
-                }
+            "variable_declarator"
+                if parent.child_by_field_name("name").is_some_and(|n| n.id() == node.id()) =>
+            {
+                return;
             }
             // Skip: function / generator declaration name
             "function_declaration" | "generator_function_declaration"
-            | "function" | "generator_function" => {
-                if parent.child_by_field_name("name").is_some_and(|n| n.id() == node.id()) {
-                    return;
-                }
+            | "function" | "generator_function"
+                if parent.child_by_field_name("name").is_some_and(|n| n.id() == node.id()) =>
+            {
+                return;
             }
             // Skip: class declaration name
-            "class_declaration" | "class" | "abstract_class_declaration" => {
-                if parent.child_by_field_name("name").is_some_and(|n| n.id() == node.id()) {
-                    return;
-                }
+            "class_declaration" | "class" | "abstract_class_declaration"
+                if parent.child_by_field_name("name").is_some_and(|n| n.id() == node.id()) =>
+            {
+                return;
             }
             // Skip: method / property signature name
             "method_definition" | "method_signature" | "property_signature"
-            | "public_field_definition" => {
-                if parent.child_by_field_name("name").is_some_and(|n| n.id() == node.id()) {
-                    return;
-                }
+            | "public_field_definition"
+                if parent.child_by_field_name("name").is_some_and(|n| n.id() == node.id()) =>
+            {
+                return;
             }
             // Skip: all import binding positions
             "import_clause" | "import_specifier" | "namespace_import" => return,
             // Skip: export specifier  (export { X })
             "export_specifier" => return,
             // Skip: labeled statement label
-            "labeled_statement" => {
-                if parent.child_by_field_name("label").is_some_and(|n| n.id() == node.id()) {
-                    return;
-                }
+            "labeled_statement"
+                if parent.child_by_field_name("label").is_some_and(|n| n.id() == node.id()) =>
+            {
+                return;
             }
             // Skip: member-expression property  (obj.PROP — not LEGB-resolvable)
             // The object part (obj) is NOT skipped and will fire separately.
-            "member_expression" => {
-                if parent.child_by_field_name("property").is_some_and(|n| n.id() == node.id()) {
-                    return;
-                }
+            "member_expression"
+                if parent.child_by_field_name("property").is_some_and(|n| n.id() == node.id()) =>
+            {
+                return;
             }
             // Skip: object literal key  { key: value }
-            "pair" => {
-                if parent.child_by_field_name("key").is_some_and(|n| n.id() == node.id()) {
-                    return;
-                }
+            "pair"
+                if parent.child_by_field_name("key").is_some_and(|n| n.id() == node.id()) =>
+            {
+                return;
             }
             // Skip: TypeScript type parameter declaration
             "type_parameter" => return,
             // Skip: TypeScript parameter names — the `name` field is a definition, not a use.
             // The `type` field IS walked (by the required_parameter arm in walk_node).
-            "required_parameter" | "optional_parameter" => {
-                if parent.child_by_field_name("name").is_some_and(|n| n.id() == node.id()) {
-                    return;
-                }
+            "required_parameter" | "optional_parameter"
+                if parent.child_by_field_name("name").is_some_and(|n| n.id() == node.id()) =>
+            {
+                return;
             }
             _ => {}
         }
