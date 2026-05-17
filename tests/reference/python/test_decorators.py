@@ -1,6 +1,6 @@
 from textwrap import dedent
 
-from conftest import analyze_sources, assert_has_edge, assert_no_edge
+from ..helpers import analyze_sources, assert_has_edge, assert_no_edge
 
 
 def test_attribute_decorator_local_obj_has_a():
@@ -131,7 +131,6 @@ def test_external_package_decorator_no_edge():
             pass
     """)
     edges = analyze_sources([("/fixture/mymod.py", mymod)])
-    # pytest is not a local definition — no has-a or references edge to it
     decorator_edges = [
         e for e in edges
         if e["callee"].startswith("pytest") or e["caller"].startswith("pytest")

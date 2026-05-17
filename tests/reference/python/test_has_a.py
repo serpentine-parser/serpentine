@@ -1,6 +1,6 @@
 from textwrap import dedent
 
-from conftest import analyze_sources, assert_has_edge
+from ..helpers import analyze_sources, assert_has_edge
 
 
 def test_local_class_constructor():

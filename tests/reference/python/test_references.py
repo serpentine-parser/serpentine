@@ -1,6 +1,6 @@
 from textwrap import dedent
 
-from conftest import analyze_sources, assert_has_edge
+from ..helpers import analyze_sources, assert_has_edge
 
 
 def test_local_name_assignment():
@@ -13,7 +13,7 @@ def test_local_name_assignment():
     assert_has_edge(edges, "mymod.x", "mymod.y", "references")
 
 
-def test_imported_name_reference():  # post-fix
+def test_imported_name_reference():
     """x = Config where Config is imported — no call, just a name reference."""
     models = dedent("""\
         class Config:
@@ -30,7 +30,7 @@ def test_imported_name_reference():  # post-fix
     assert_has_edge(edges, "main.x", "pkg.models.Config", "references")
 
 
-def test_imported_constant_reference():  # post-fix
+def test_imported_constant_reference():
     """x = CONST where CONST is an imported constant."""
     constants = dedent("""\
         CONST = 42
@@ -58,7 +58,7 @@ def test_local_expression():
     assert_has_edge(edges, "mymod.x", "mymod.b", "references")
 
 
-def test_imported_name_in_expression():  # post-fix
+def test_imported_name_in_expression():
     """x = LIMIT + 1 where LIMIT is an imported constant."""
     constants = dedent("""\
         LIMIT = 100
@@ -74,7 +74,7 @@ def test_imported_name_in_expression():  # post-fix
     assert_has_edge(edges, "main.x", "pkg.constants.LIMIT", "references")
 
 
-def test_attribute_access():  # post-fix
+def test_attribute_access():
     """x = obj.attr — obj is referenced."""
     mymod = dedent("""\
         class Obj:
@@ -99,7 +99,7 @@ def test_local_collection_references():
     assert_has_edge(edges, "mymod.x", "mymod.b", "references")
 
 
-def test_imported_collection_references():  # post-fix
+def test_imported_collection_references():
     """x = [A, B] where A and B are imported."""
     items = dedent("""\
         class A:
