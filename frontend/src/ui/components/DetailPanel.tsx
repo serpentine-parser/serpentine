@@ -238,18 +238,20 @@ export function DetailPanel({ node, cfgNode, onClose, allEdges, visibleEdges, fi
     return foundNode ? foundNode.id : nodeId;
   };
 
-  const getEdgeTypeBadge = (edgeType: "calls" | "is-a" | "has-a" | "references") => {
+  const getEdgeTypeBadge = (edgeType: "calls" | "is-a" | "has-a" | "references" | "imports") => {
     const styles = {
       calls: "bg-blue-100 text-blue-800 border-blue-200",
       "is-a": "bg-green-100 text-green-800 border-green-200",
       "has-a": "bg-orange-100 text-orange-800 border-orange-200",
       references: "bg-amber-100 text-amber-800 border-amber-200",
+      imports: "bg-violet-100 text-violet-800 border-violet-200",
     };
     const labels = {
       calls: "Calls",
       "is-a": "Inherits",
       "has-a": "Contains",
       references: "References",
+      imports: "Imports",
     };
     return (
       <span
