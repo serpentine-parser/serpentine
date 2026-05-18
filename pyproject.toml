@@ -52,6 +52,8 @@ python-source = "src"
 include = [
     { path = "src/serpentine/static/**/*", format = "sdist" },
     { path = "src/serpentine/static/**/*", format = "wheel" },
+    { path = "src/serpentine/templates/**/*", format = "sdist" },
+    { path = "src/serpentine/templates/**/*", format = "wheel" },
 ]
 
 [dependency-groups]

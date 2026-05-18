@@ -100,6 +100,23 @@ Options:
   --no-watch            Disable file watching (static analysis only)
 ```
 
+### `serpentine init`
+
+Set up Serpentine helper files in a project.
+
+```
+serpentine init [PATH] [OPTIONS]
+
+Arguments:
+  PATH    Project directory to initialize (default: current directory)
+
+Options:
+  --force     Overwrite existing Serpentine init files
+```
+
+This writes `.claude/commands/serpentine.md` and scaffolds `.serpentine.yml`.
+Existing files are left untouched unless `--force` is passed.
+
 ### `serpentine analyze`
 
 Analyze a project and output the full dependency graph as JSON.
