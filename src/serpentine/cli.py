@@ -12,6 +12,7 @@ import json
 import threading
 import time
 import webbrowser
+from importlib.resources import files as _res_files
 from pathlib import Path
 from typing import Any
 
@@ -23,6 +24,47 @@ from serpentine.selector import GraphSelector, filter_by_state
 from serpentine.server import create_app
 from serpentine.state import GraphStateManager
 from serpentine.watcher import FileWatcher
+
+_DEFAULT_CONFIG_YAML = """\
+analysis:
+  extensions:
+    - .py
+    - .js
+    - .jsx
+    - .ts
+    - .tsx
+    - .rs
+  exclude_dirs:
+    - __pycache__
+    - .git
+    - .venv
+    - venv
+    - node_modules
+    - .mypy_cache
+    - .pytest_cache
+    - .tox
+    - dist
+    - build
+    - .next
+    - .nuxt
+    - coverage
+  exclude_patterns: []
+"""
+
+_CLAUDE_MD_SECTION = """\
+## Serpentine
+
+**Never use `grep`, `find`, or `rg` for code navigation.** Serpentine is the replacement.
+
+| Instead of | Use |
+|---|---|
+| `grep -r "ClassName" .` | `/serpentine-check ClassName` |
+| `find . -name "*.py" \\| xargs grep X` | `/serpentine-check X` |
+| `ls src/module/` | `/serpentine-orient` |
+
+- `/serpentine-orient` — full structural overview: what modules exist and how they connect.
+- `/serpentine-check <target>` — find where a symbol is defined, who calls it, and its blast radius.
+"""
 
 
 @click.group()
@@ -257,9 +299,6 @@ def analyze(
                 for e in graph_data.get("edges", [])
             ]
         else:
-            flat: list[dict[str, Any]] = []
-            _flatten_nodes(graph_data.get("nodes", []), flat)
-            project_path_obj = Path(path).resolve()
             lines = [
                 f"{n.get('id', ''):<55}  {n.get('type', ''):<12}  {_rel_path(n.get('file_path', ''), project_path_obj)}"
                 for n in flat
@@ -372,11 +411,10 @@ def catalog(
 
     graph_data = json.loads(state_manager.get_graph_json())
 
-    # Flatten tree into catalog entries
+    # JSON mode: flatten and filter
     flat_nodes: list[dict[str, Any]] = []
     _flatten_nodes(graph_data.get("nodes", []), flat_nodes)
 
-    # Filter by origin
     if not include_standard or not include_third_party:
         flat_nodes = [
             n
@@ -385,11 +423,9 @@ def catalog(
             and not (n.get("origin") == "third-party" and not include_third_party)
         ]
 
-    # Strip assignment nodes if requested
     if no_assignments:
         flat_nodes = [n for n in flat_nodes if n.get("type") != "assignment"]
 
-    # Apply glob filters (union across all patterns, matched against id and name)
     if filters:
         flat_nodes = [
             n
@@ -401,24 +437,9 @@ def catalog(
             )
         ]
 
-    # Apply state filter
     if state:
         states = {s.strip() for s in state.split(",") if s.strip()}
         flat_nodes = [n for n in flat_nodes if n.get("change_status") in states]
-
-    if fmt == "text":
-        project_path_obj = Path(path).resolve()
-        lines = [
-            f"{n.get('id', ''):<55}  {n.get('type', ''):<12}  {_rel_path(n.get('file_path', ''), project_path_obj)}"
-            for n in flat_nodes
-        ]
-        text_out = "\n".join(lines)
-        if output:
-            Path(output).write_text(text_out)
-            click.echo(f"📄 Written to: {output}", err=True)
-        else:
-            click.echo(text_out)
-        return
 
     result = {
         "nodes": flat_nodes,
@@ -477,7 +498,7 @@ def stats(
     state_manager = GraphStateManager(project_path)
     state_manager.analyze_project(project_path)
 
-    graph_data = json.loads(state_manager.get_graph_json())
+    graph_data = state_manager.get_graph_data()
 
     # Flatten all nodes for counting
     all_nodes: list[dict[str, Any]] = []
@@ -534,6 +555,114 @@ def stats(
     click.echo(json.dumps(result, indent=2) if pretty else json.dumps(result))
 
 
+@main.command()
+@click.argument("path", type=click.Path(exists=True), default=".")
+def init(path: str) -> None:
+    """Initialize a project for use with serpentine.
+
+    Generates .serpentine.yml, updates .gitignore, installs Claude Code skills,
+    and appends a serpentine section to CLAUDE.md.
+
+    PATH is the directory to initialize (defaults to current directory).
+
+    Examples:
+        serpentine init             # Initialize current directory
+        serpentine init ./my-project
+    """
+    project_path = Path(path).resolve()
+
+    if not project_path.is_dir():
+        click.echo(f"Error: {path} must be a directory, not a file.", err=True)
+        raise SystemExit(1)
+
+    results: list[tuple[str, str]] = []
+
+    # Step 1: .serpentine.yml
+    config_path = project_path / ".serpentine.yml"
+    if config_path.is_dir():
+        results.append(
+            ("✗", ".serpentine.yml — path is a directory, cannot write config")
+        )
+    elif config_path.exists():
+        results.append(("⚠", ".serpentine.yml — already exists, skipped"))
+    else:
+        try:
+            config_path.write_text(_DEFAULT_CONFIG_YAML)
+            results.append(("✓", ".serpentine.yml created"))
+        except (PermissionError, OSError) as e:
+            results.append(("✗", f".serpentine.yml — {e}"))
+
+    # Step 2: .gitignore
+    gitignore_path = project_path / ".gitignore"
+    try:
+        if gitignore_path.exists():
+            content = gitignore_path.read_text()
+            if any(
+                line.strip() in {".serpentine", ".serpentine/"}
+                for line in content.splitlines()
+            ):
+                results.append(("✓", ".gitignore — .serpentine already present"))
+            else:
+                sep = "" if content.endswith("\n") else "\n"
+                gitignore_path.write_text(f"{content}{sep}.serpentine\n")
+                results.append(("✓", ".gitignore updated"))
+        else:
+            gitignore_path.write_text(".serpentine\n")
+            results.append(("✓", ".gitignore created"))
+    except (PermissionError, OSError) as e:
+        results.append(("✗", f".gitignore — {e}"))
+
+    # Step 3: Skill files
+    claude_dir = project_path / ".claude"
+    if claude_dir.exists() and not claude_dir.is_dir():
+        results.append(("✗", ".claude exists as a file — cannot install skills"))
+    else:
+        for skill_name in ("serpentine-check", "serpentine-orient"):
+            skill_target = claude_dir / "skills" / skill_name / "SKILL.md"
+            rel = str(skill_target.relative_to(project_path))
+            if skill_target.exists():
+                results.append(("⚠", f"{rel} — already exists, skipped"))
+                continue
+            try:
+                bundled = _res_files("serpentine.skills").joinpath(f"{skill_name}.md")
+                skill_content = bundled.read_text(encoding="utf-8")
+            except FileNotFoundError:
+                results.append(
+                    (
+                        "✗",
+                        f"{rel} — skill not found in package, try reinstalling serpentine",
+                    )
+                )
+                continue
+            try:
+                skill_target.parent.mkdir(parents=True, exist_ok=True)
+                skill_target.write_text(skill_content)
+                results.append(("✓", f"{rel} installed"))
+            except (PermissionError, OSError) as e:
+                results.append(("✗", f"{rel} — {e}"))
+
+    # Step 4: CLAUDE.md
+    claude_md_path = project_path / "CLAUDE.md"
+    try:
+        if claude_md_path.exists():
+            content = claude_md_path.read_text()
+            if any(line.strip() == "## Serpentine" for line in content.splitlines()):
+                results.append(("✓", "CLAUDE.md — serpentine section already present"))
+            else:
+                sep = "" if content.endswith("\n") else "\n"
+                claude_md_path.write_text(f"{content}{sep}\n{_CLAUDE_MD_SECTION}")
+                results.append(("✓", "CLAUDE.md updated"))
+        else:
+            claude_md_path.write_text(_CLAUDE_MD_SECTION)
+            results.append(("✓", "CLAUDE.md created"))
+    except (PermissionError, OSError) as e:
+        results.append(("✗", f"CLAUDE.md — {e}"))
+
+    click.echo("\nserpentine init complete:")
+    for symbol, message in results:
+        click.echo(f"  {symbol} {message}")
+
+
 def _rel_path(file_path: str, base: Path) -> str:
     """Return file_path relative to base, or the original if not under base."""
     if not file_path:
@@ -550,7 +679,16 @@ def _flatten_nodes(
     parent_id: str | None = None,
 ) -> None:
     """Recursively flatten nested node tree into a flat catalog list."""
-    keep_keys = {"id", "name", "type", "object_type", "origin", "parent", "file_path", "change_status"}
+    keep_keys = {
+        "id",
+        "name",
+        "type",
+        "object_type",
+        "origin",
+        "parent",
+        "file_path",
+        "change_status",
+    }
     for node in nodes:
         entry = {k: v for k, v in node.items() if k in keep_keys}
         # Normalize type field
@@ -558,6 +696,62 @@ def _flatten_nodes(
             entry["type"] = entry.pop("object_type")
         result.append(entry)
         _flatten_nodes(node.get("children", []), result, node.get("id"))
+
+
+def _render_catalog_tree(
+    nodes: list[dict[str, Any]],
+    project_path: Path,
+    include_standard: bool = False,
+    include_third_party: bool = False,
+) -> list[str]:
+    """Render the node hierarchy as a file-grouped indented tree."""
+    lines: list[str] = []
+    groups: dict[str, list[dict[str, Any]]] = {}
+
+    for node in nodes:
+        origin = node.get("origin", "local")
+        if origin == "standard" and not include_standard:
+            continue
+        if origin == "third-party" and not include_third_party:
+            continue
+        fp = node.get("file_path", "")
+        try:
+            rel = str(Path(fp).relative_to(project_path)) if fp else "(external)"
+        except ValueError:
+            rel = fp or "(external)"
+        groups.setdefault(rel, []).append(node)
+
+    def render_node(node: dict[str, Any], depth: int) -> None:
+        ntype = node.get("type") or node.get("object_type") or ""
+        if ntype == "assignment":
+            return
+        name = node.get("name") or node.get("id") or ""
+        lines.append("  " * depth + f"{name}  [{ntype}]")
+        for child in node.get("children", []):
+            render_node(child, depth + 1)
+
+    for rel_path in sorted(groups.keys()):
+        lines.append(rel_path)
+        for node in groups[rel_path]:
+            render_node(node, depth=1)
+        lines.append("")
+
+    return lines
+
+
+def _build_node_index(nodes: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
+    """Recursively index all nodes by id for O(1) lookup."""
+    index: dict[str, dict[str, Any]] = {}
+
+    def _recurse(node_list: list[dict[str, Any]]) -> None:
+        for node in node_list:
+            nid = node.get("id", "")
+            if nid:
+                index[nid] = node
+            _recurse(node.get("children", []))
+
+    _recurse(nodes)
+    return index
 
 
 def _filter_by_origin(

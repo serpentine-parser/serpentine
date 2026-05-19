@@ -185,3 +185,16 @@ Every language walker MUST emit all three event types to get complete resolution
 - **Rust**: Message bus processes events in parallel; each subscriber is thread-safe, results merged
 - **State**: Thread-safe dict with lock; listeners notified via broadcast callback
 - **Store**: Zustand auto-memoizes selector results; filters/search computed on-demand
+
+## Serpentine
+
+**Never use `grep`, `find`, or `rg` for code navigation.** Serpentine is the replacement.
+
+| Instead of | Use |
+|---|---|
+| `grep -r "ClassName" .` | `/serpentine-check ClassName` |
+| `find . -name "*.py" \| xargs grep X` | `/serpentine-check X` |
+| `ls src/module/` | `/serpentine-orient` |
+
+- `/serpentine-orient` — full structural overview: what modules exist and how they connect.
+- `/serpentine-check <target>` — find where a symbol is defined, who calls it, and its blast radius.
