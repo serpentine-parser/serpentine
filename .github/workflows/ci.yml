@@ -10,8 +10,6 @@ jobs:
   check-rust:
     name: Rust check
     runs-on: ubuntu-latest
-    env:
-      PYO3_USE_ABI3_FORWARD_COMPATIBILITY: "1"
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
 
@@ -38,8 +36,6 @@ jobs:
   test-python:
     name: Python reference tests
     runs-on: ubuntu-latest
-    env:
-      PYO3_USE_ABI3_FORWARD_COMPATIBILITY: "1"
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
 

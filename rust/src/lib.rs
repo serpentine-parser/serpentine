@@ -250,7 +250,7 @@ impl FileManager {
         py: Python<'py>,
         path: &str,
         source: &str,
-    ) -> PyResult<&'py PyList> {
+    ) -> PyResult<Bound<'py, PyList>> {
         let pb = PathBuf::from(path);
         let entry = self
             .files
@@ -374,7 +374,7 @@ impl FileManager {
     }
 
     /// Get parsed results from all tracked files (deprecated).
-    fn get_all_results<'py>(&self, py: Python<'py>) -> PyResult<&'py PyList> {
+    fn get_all_results<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyList>> {
         let pylist = PyList::empty(py);
         // Return empty for now - this method is being phased out
         Ok(pylist)
@@ -387,7 +387,7 @@ impl FileManager {
 }
 
 #[pymodule]
-fn _analyzer(_py: Python, m: &PyModule) -> PyResult<()> {
+fn _analyzer(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<FileManager>()?;
     Ok(())
 }
