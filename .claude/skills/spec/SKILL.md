@@ -27,7 +27,7 @@ Ask me about requirements, edge cases, and constraints. Use the structural analy
 
 **Step 3 — Write the spec**
 
-Write a concise implementation plan to `.claude/scratch/spec-$0.md` in the current directory. The spec should:
+Write a concise implementation plan to `.claude/scratch/spec-[feature-name].md` in the current directory. The spec should:
 
 - Reference the serpentine analysis (which modules are affected, what the blast radius is)
 - For large features, break into smaller steps
