@@ -299,6 +299,9 @@ def analyze(
                 for e in graph_data.get("edges", [])
             ]
         else:
+            flat: list[dict[str, Any]] = []
+            _flatten_nodes(graph_data.get("nodes", []), flat)
+            project_path_obj = Path(path).resolve()
             lines = [
                 f"{n.get('id', ''):<55}  {n.get('type', ''):<12}  {_rel_path(n.get('file_path', ''), project_path_obj)}"
                 for n in flat
@@ -411,10 +414,11 @@ def catalog(
 
     graph_data = json.loads(state_manager.get_graph_json())
 
-    # JSON mode: flatten and filter
+    # Flatten tree into catalog entries
     flat_nodes: list[dict[str, Any]] = []
     _flatten_nodes(graph_data.get("nodes", []), flat_nodes)
 
+    # Filter by origin
     if not include_standard or not include_third_party:
         flat_nodes = [
             n
@@ -423,9 +427,11 @@ def catalog(
             and not (n.get("origin") == "third-party" and not include_third_party)
         ]
 
+    # Strip assignment nodes if requested
     if no_assignments:
         flat_nodes = [n for n in flat_nodes if n.get("type") != "assignment"]
 
+    # Apply glob filters (union across all patterns, matched against id and name)
     if filters:
         flat_nodes = [
             n
@@ -437,9 +443,24 @@ def catalog(
             )
         ]
 
+    # Apply state filter
     if state:
         states = {s.strip() for s in state.split(",") if s.strip()}
         flat_nodes = [n for n in flat_nodes if n.get("change_status") in states]
+
+    if fmt == "text":
+        project_path_obj = Path(path).resolve()
+        lines = [
+            f"{n.get('id', ''):<55}  {n.get('type', ''):<12}  {_rel_path(n.get('file_path', ''), project_path_obj)}"
+            for n in flat_nodes
+        ]
+        text_out = "\n".join(lines)
+        if output:
+            Path(output).write_text(text_out)
+            click.echo(f"📄 Written to: {output}", err=True)
+        else:
+            click.echo(text_out)
+        return
 
     result = {
         "nodes": flat_nodes,
@@ -696,62 +717,6 @@ def _flatten_nodes(
             entry["type"] = entry.pop("object_type")
         result.append(entry)
         _flatten_nodes(node.get("children", []), result, node.get("id"))
-
-
-def _render_catalog_tree(
-    nodes: list[dict[str, Any]],
-    project_path: Path,
-    include_standard: bool = False,
-    include_third_party: bool = False,
-) -> list[str]:
-    """Render the node hierarchy as a file-grouped indented tree."""
-    lines: list[str] = []
-    groups: dict[str, list[dict[str, Any]]] = {}
-
-    for node in nodes:
-        origin = node.get("origin", "local")
-        if origin == "standard" and not include_standard:
-            continue
-        if origin == "third-party" and not include_third_party:
-            continue
-        fp = node.get("file_path", "")
-        try:
-            rel = str(Path(fp).relative_to(project_path)) if fp else "(external)"
-        except ValueError:
-            rel = fp or "(external)"
-        groups.setdefault(rel, []).append(node)
-
-    def render_node(node: dict[str, Any], depth: int) -> None:
-        ntype = node.get("type") or node.get("object_type") or ""
-        if ntype == "assignment":
-            return
-        name = node.get("name") or node.get("id") or ""
-        lines.append("  " * depth + f"{name}  [{ntype}]")
-        for child in node.get("children", []):
-            render_node(child, depth + 1)
-
-    for rel_path in sorted(groups.keys()):
-        lines.append(rel_path)
-        for node in groups[rel_path]:
-            render_node(node, depth=1)
-        lines.append("")
-
-    return lines
-
-
-def _build_node_index(nodes: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
-    """Recursively index all nodes by id for O(1) lookup."""
-    index: dict[str, dict[str, Any]] = {}
-
-    def _recurse(node_list: list[dict[str, Any]]) -> None:
-        for node in node_list:
-            nid = node.get("id", "")
-            if nid:
-                index[nid] = node
-            _recurse(node.get("children", []))
-
-    _recurse(nodes)
-    return index
 
 
 def _filter_by_origin(
