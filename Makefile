@@ -19,5 +19,5 @@ frontend-dev:
 # Build frontend + Rust wheel, then install serpentine CLI globally
 install: frontend-build
 	uv run maturin build --release --out dist
-	wheel=$$(ls -t dist/serpentine-*.whl | head -1) && uv tool install --reinstall "$$wheel"
+	wheel=$$(ls -t dist/serpentine*.whl | head -1) && uv tool install --reinstall "$$wheel"
 	uv tool update-shell
