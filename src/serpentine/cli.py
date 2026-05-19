@@ -183,6 +183,13 @@ def serve(
     default=None,
     help="Comma-separated change states to include: modified,added,deleted",
 )
+@click.option(
+    "--format",
+    "fmt",
+    type=click.Choice(["json", "text"]),
+    default="json",
+    help="Output format: json (default) or text (one line per item, agent-friendly)",
+)
 def analyze(
     path: str,
     output: str | None,
@@ -194,6 +201,7 @@ def analyze(
     no_cfg: bool,
     edges_only: bool,
     state: str | None,
+    fmt: str,
 ) -> None:
     """Analyze a project and output the dependency graph as JSON.
 
@@ -241,6 +249,28 @@ def analyze(
     # Strip cfg fields if requested
     if no_cfg:
         _strip_cfg(graph_data.get("nodes", []))
+
+    if fmt == "text":
+        if edges_only:
+            lines = [
+                f"{e.get('caller', e.get('source', ''))} → {e.get('callee', e.get('target', ''))}    {e.get('type', '')}"
+                for e in graph_data.get("edges", [])
+            ]
+        else:
+            flat: list[dict[str, Any]] = []
+            _flatten_nodes(graph_data.get("nodes", []), flat)
+            project_path_obj = Path(path).resolve()
+            lines = [
+                f"{n.get('id', ''):<55}  {n.get('type', ''):<12}  {_rel_path(n.get('file_path', ''), project_path_obj)}"
+                for n in flat
+            ]
+        text_out = "\n".join(lines)
+        if output:
+            Path(output).write_text(text_out)
+            click.echo(f"📄 Written to: {output}", err=True)
+        else:
+            click.echo(text_out)
+        return
 
     output_data = graph_data.get("edges", []) if edges_only else graph_data
     graph_json = (
@@ -299,6 +329,13 @@ def analyze(
     default=None,
     help="Filter flat node list by change_status (modified,added,deleted)",
 )
+@click.option(
+    "--format",
+    "fmt",
+    type=click.Choice(["json", "text"]),
+    default="json",
+    help="Output format: json (default) or text (one line per node, agent-friendly)",
+)
 def catalog(
     path: str,
     filters: tuple[str, ...],
@@ -308,6 +345,7 @@ def catalog(
     output: str | None,
     pretty: bool,
     state: str | None,
+    fmt: str,
 ) -> None:
     """Flat list of all nodes for agent discovery.
 
@@ -367,6 +405,20 @@ def catalog(
     if state:
         states = {s.strip() for s in state.split(",") if s.strip()}
         flat_nodes = [n for n in flat_nodes if n.get("change_status") in states]
+
+    if fmt == "text":
+        project_path_obj = Path(path).resolve()
+        lines = [
+            f"{n.get('id', ''):<55}  {n.get('type', ''):<12}  {_rel_path(n.get('file_path', ''), project_path_obj)}"
+            for n in flat_nodes
+        ]
+        text_out = "\n".join(lines)
+        if output:
+            Path(output).write_text(text_out)
+            click.echo(f"📄 Written to: {output}", err=True)
+        else:
+            click.echo(text_out)
+        return
 
     result = {
         "nodes": flat_nodes,
@@ -480,6 +532,16 @@ def stats(
     }
 
     click.echo(json.dumps(result, indent=2) if pretty else json.dumps(result))
+
+
+def _rel_path(file_path: str, base: Path) -> str:
+    """Return file_path relative to base, or the original if not under base."""
+    if not file_path:
+        return ""
+    try:
+        return str(Path(file_path).relative_to(base))
+    except ValueError:
+        return file_path
 
 
 def _flatten_nodes(

@@ -4,11 +4,21 @@ Fast dependency graph analysis and visualization for projects.
 
 Serpentine analyzes your Python and JavaScript codebases and displays an interactive dependency graph and cfg in your browser. It watches for file changes and updates the graph in real-time.
 
-Never use `grep`, `find`, or `rg` for code navigation or exploration. Always use the serpentine skills instead:
-- `/serpentine-orient` — structural orientation, module relationships, understanding the shape of the codebase
-- `/serpentine-check <target>` — blast radius check before editing, and to verify no dependents remain after a change
+**Never use `grep`, `find`, or `rg` for code navigation.** Serpentine is the replacement for all of these. Use the skills below instead:
 
-`grep`/`find`/`rg` are only permitted when serpentine cannot answer the question (e.g. searching file contents for a literal string, not for code structure).
+| Instead of                             | Use                                          |
+| -------------------------------------- | -------------------------------------------- |
+| `grep -r "ClassName" .`                | `/serpentine-check ClassName`                |
+| `grep -r "def function_name" .`        | `/serpentine-check function_name`            |
+| `find . -name "*.py" \| xargs grep X` | `/serpentine-check X`                        |
+| `ls src/module/` or `find . -type f`  | `/serpentine-orient` or `/serpentine-check X` (What's in module X?) |
+| `grep -r "import X" .`                 | `/serpentine-check X` → "What calls X?" pattern |
+| Understanding module structure          | `/serpentine-orient`                         |
+
+- `/serpentine-orient` — full structural overview: what modules exist, where they live, how they connect. Use at session start or when you need to understand the shape of an unfamiliar area.
+- `/serpentine-check <target>` — targeted lookup: find where a symbol is defined, who calls it, what it depends on, or its blast radius before an edit.
+
+`grep`/`find`/`rg` are only permitted when serpentine cannot answer the question (e.g. searching for a literal string value inside file contents, not for code structure).
 
 ## Features
 

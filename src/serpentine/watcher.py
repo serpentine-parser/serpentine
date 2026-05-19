@@ -15,7 +15,7 @@ import threading
 from collections.abc import Callable
 from pathlib import Path
 
-from watchdog.events import FileSystemEvent, FileSystemEventHandler
+from watchdog.events import FileMovedEvent, FileSystemEvent, FileSystemEventHandler
 from watchdog.observers import Observer
 
 logger = logging.getLogger(__name__)
@@ -154,28 +154,55 @@ class _DebouncedEventHandler(FileSystemEventHandler):
 
     def on_any_event(self, event: FileSystemEvent) -> None:
         """Handle any file system event."""
-        # Skip directories
+        dest = getattr(event, "dest_path", None)
+        logger.warning(
+            f"[watcher] {event.__class__.__name__} type={event.event_type}"
+            f" src={event.src_path}" + (f" dest={dest}" if dest else "")
+        )
         if event.is_directory:
             return
-
-        # Get the path
-        path = Path(str(event.src_path))
-
-        # Skip if not a watched extension
-        if path.suffix not in self._extensions:
+        if isinstance(event, FileMovedEvent):
+            self._handle_move(event)
             return
 
-        # Skip if in an ignored directory
+        path = Path(str(event.src_path))
+        if path.suffix not in self._extensions:
+            return
         if any(ignored in path.parts for ignored in IGNORED_DIRECTORIES):
             return
 
         logger.debug(f"Relevant file event: {event.event_type} {path.name}")
-        # Preserve "created" so a subsequent "modified" event from the same IDE
-        # save sequence doesn't overwrite it (which would cause the incremental
-        # analyzer to call update_file on a file it hasn't opened yet).
-        if self._pending_files.get(str(path)) != "created":
+        existing = self._pending_files.get(str(path))
+        if existing in ("created", "modified"):
+            pass  # preserve: spurious delete after atomic replace must not downgrade
+        elif event.event_type == "created" and existing == "deleted":
+            self._pending_files[str(path)] = "modified"
+        else:
             self._pending_files[str(path)] = event.event_type
         self._schedule_callback()
+
+    def _handle_move(self, event: FileMovedEvent) -> None:
+        triggered = False
+        src = Path(str(event.src_path))
+        dest = Path(str(event.dest_path))
+
+        if src.suffix in self._extensions and not any(
+            ignored in src.parts for ignored in IGNORED_DIRECTORIES
+        ):
+            if self._pending_files.get(str(src)) != "created":
+                self._pending_files[str(src)] = "deleted"
+            triggered = True
+
+        if dest.suffix in self._extensions and not any(
+            ignored in dest.parts for ignored in IGNORED_DIRECTORIES
+        ):
+            logger.debug(f"Atomic file replacement: {dest.name}")
+            if self._pending_files.get(str(dest)) != "created":
+                self._pending_files[str(dest)] = "modified"
+            triggered = True
+
+        if triggered:
+            self._schedule_callback()
 
     def _schedule_callback(self) -> None:
         """Schedule the callback with debouncing."""
@@ -198,4 +225,5 @@ class _DebouncedEventHandler(FileSystemEventHandler):
             self._pending_files.clear()
             self._pending_callback = None
 
+        logger.warning(f"[watcher] firing callback: {changed_files}")
         self._callback(changed_files)
