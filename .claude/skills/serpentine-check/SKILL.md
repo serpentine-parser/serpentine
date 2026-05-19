@@ -1,65 +1,80 @@
 ---
-name: serpentine-orient
-description: Structural orientation for an unfamiliar codebase using the serpentine dependency graph CLI. Use when starting work in a new codebase, when the user asks about code structure or module relationships, or when you need to understand the shape of a project before making changes. Covers Python, JavaScript, TypeScript, and Rust.
+name: serpentine-check
+description: Blast radius check before editing, deleting, moving, or refactoring a function, class, or module. Also use after edits to verify no dependents remain. Pass the target name as an argument. Use whenever modifying code that may have external callers.
+argument-hint: <target> or verify:<target>
 context: fork
 allowed-tools: Bash
 ---
 
-You are a codebase orientation agent. Run the serpentine CLI commands below in sequence, synthesize the output, and return a plain-language structural briefing. Do not read files. Do not make edits.
+You are a dependency check agent. Determine the blast radius of a proposed change using the serpentine CLI. Do not read files. Do not make edits.
 
-## Step 1 — Project scale
+**Target:** $ARGUMENTS
 
-```bash
-uv run serpentine stats . --pretty
-```
+## Mode
 
-Note `node_count`, `edge_count`, and `top_level_modules`.
+If the target starts with `verify:`, this is a post-edit verification. Strip the prefix and skip to the verification section.
 
-## Step 2 — Structural nodes
+## Steps
 
-For small projects (<500 nodes):
+**1. Find the node ID**
 
 ```bash
-uv run serpentine catalog . --no-assignments --pretty
+uv run serpentine catalog . --filter "*<target>*" --no-assignments --pretty
 ```
 
-For large projects (>500 nodes), filter by top-level modules from step 1:
+Replace `<target>` with the function, class, or module name from the arguments. If multiple nodes match, identify the correct one from `file_path` and `parent`. If nothing matches, broaden the filter.
+
+**2. Check downstream dependents**
 
 ```bash
-uv run serpentine catalog . --filter "<module>.*" --no-assignments --pretty
+uv run serpentine analyze . --select "<node_id>+" --edges-only --pretty
 ```
 
-`--no-assignments` skips variable nodes — use it by default.
+Edges where `from` is outside the target's own module are external dependents — the things that break.
 
-## Step 3 — Edge structure
+**3. Check upstream (only if the task requires it)**
 
 ```bash
-uv run serpentine analyze . --no-cfg --edges-only --pretty
+uv run serpentine analyze . --select "+<node_id>" --edges-only --pretty
 ```
 
-Count in-degree (`to` references) and out-degree (`from` references) per node. Highest in-degree = most depended-upon.
+Only run this if the task involves understanding what the target depends on.
 
 ## Output format
 
-Return exactly this structure:
+**Target:** full node ID (e.g. `src.auth.views.login`)
 
-**Scale**: X modules, Y functions/classes, Z edges. Small/medium/large.
+**Verdict:** SAFE / BREAKING / UNKNOWN
 
-**Top-level boundaries**: Each top-level module and one sentence on what it owns.
+- SAFE — no external dependents
+- BREAKING — external dependents exist
+- UNKNOWN — selector returned no results or match was ambiguous. State why and suggest a broader selector.
 
-**Where the mass is**: Which modules have the most nodes.
+**Dependents** (if BREAKING): each external dependent with node ID and file path, grouped by module.
 
-**Load-bearing nodes**: 3-5 highest in-degree nodes — most likely to cause breakage if changed.
+**Safe to ignore**: test files, mocks.
 
-**Architectural seams**: Edges crossing top-level module boundaries — the integration points.
+**Recommended action**: one or two sentences on what to do before proceeding.
 
-**Ignore**: Test infrastructure, generated code, build artifacts.
+## Post-edit verification
 
-No raw JSON. No speculation about business logic. Structural facts only.
+If target started with `verify:`, run only step 2 and return:
 
-## Filter and selector reference
+- **CLEAR** — no external dependents remain
+- **REMAINING** — list what's left
 
-Node IDs are dotted full paths (e.g. `src.auth.views.login`). `*` matches any characters including dots.
+## Selector reference
+
+| Pattern       | Meaning                                |
+| ------------- | -------------------------------------- |
+| `pattern`     | Matching nodes only                    |
+| `+pattern`    | Pattern + upstream dependencies        |
+| `pattern+`    | Pattern + downstream dependents        |
+| `+pattern+`   | Both directions                        |
+| `@pattern`    | Full connected component               |
+| `N+pattern+M` | Bounded hops: N upstream, M downstream |
+
+Node IDs are dotted full paths. `*` matches any characters including dots.
 
 | You want                  | Use                   | NOT                  |
 | ------------------------- | --------------------- | -------------------- |
@@ -69,4 +84,6 @@ Node IDs are dotted full paths (e.g. `src.auth.views.login`). `*` matches any ch
 
 `auth*` only matches IDs starting with `auth` — it misses `src.auth`.
 
-Multiple `--filter` flags combine as a union.
+Empty result from `analyze` means either unused code or a wrong selector. If it seems wrong, widen with `@pattern` to check connectivity.
+
+No raw JSON in output.

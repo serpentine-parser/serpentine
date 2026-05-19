@@ -63,13 +63,13 @@ export type Node = {
 export type EdgeData = {
   source: string;
   target: string;
-  type: "calls" | "is-a" | "has-a" | "references";
+  type: "calls" | "is-a" | "has-a" | "references" | "imports";
 };
 
 export type Edge = {
   source: string;
   target: string;
-  type: "calls" | "is-a" | "has-a" | "references";
+  type: "calls" | "is-a" | "has-a" | "references" | "imports";
   highlighted?: boolean;
   changeStatus?: "added" | "deleted" | null;
 };

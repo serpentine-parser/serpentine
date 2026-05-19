@@ -4,7 +4,11 @@ Fast dependency graph analysis and visualization for projects.
 
 Serpentine analyzes your Python and JavaScript codebases and displays an interactive dependency graph and cfg in your browser. It watches for file changes and updates the graph in real-time.
 
-When given the choice between using Grep and /serpentine , ALWAYS use serpentine first. Only use Grep as a backup to get information you can't get from serpentine.
+Never use `grep`, `find`, or `rg` for code navigation or exploration. Always use the serpentine skills instead:
+- `/serpentine-orient` — structural orientation, module relationships, understanding the shape of the codebase
+- `/serpentine-check <target>` — blast radius check before editing, and to verify no dependents remain after a change
+
+`grep`/`find`/`rg` are only permitted when serpentine cannot answer the question (e.g. searching file contents for a literal string, not for code structure).
 
 ## Features
 
