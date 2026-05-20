@@ -6,17 +6,17 @@ mtimes and the config file mtime. Cache hits skip the full Rust analysis.
 """
 
 import hashlib
-import json
 import logging
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
 CACHE_DIR = ".serpentine"
-CACHE_FILE = "graph_cache.json"
+FINGERPRINT_FILE = "fingerprint"
+GRAPH_FILE = "graph.json"
 
 # Bump this constant whenever the cache schema changes in a breaking way.
-CACHE_VERSION = 2
+CACHE_VERSION = 3
 
 
 def _find_analyzer_binary(package_dir: Path) -> Path | None:
@@ -40,7 +40,7 @@ class CacheManager:
     def __init__(self, project_path: Path, config_path: Path | None = None) -> None:
         self._project_path = project_path
         self._config_path = config_path
-        self._cache_path = project_path / CACHE_DIR / CACHE_FILE
+        self._cache_dir = project_path / CACHE_DIR
 
     def compute_fingerprint(self, source_files: list[Path]) -> str:
         """Return a SHA-256 hex digest over sorted (relative_path, mtime_ns) pairs."""
@@ -77,24 +77,23 @@ class CacheManager:
     def load(self, fingerprint: str) -> str | None:
         """Return cached graph_json if fingerprint matches, else None."""
         try:
-            if not self._cache_path.exists():
+            fp_path = self._cache_dir / FINGERPRINT_FILE
+            graph_path = self._cache_dir / GRAPH_FILE
+            if not fp_path.exists() or not graph_path.exists():
                 return None
-            data = json.loads(self._cache_path.read_text(encoding="utf-8"))
-            if data.get("fingerprint") == fingerprint:
+            if fp_path.read_text(encoding="utf-8").strip() == fingerprint:
                 logger.info("[cache] hit — skipping analysis")
-                return data.get("graph_json")
+                return graph_path.read_text(encoding="utf-8")
         except Exception as e:
             logger.debug(f"Cache load failed: {e}")
         return None
 
     def save(self, fingerprint: str, graph_json: str) -> None:
-        """Write fingerprint + graph_json to disk."""
+        """Write fingerprint and graph JSON to separate files."""
         try:
-            self._cache_path.parent.mkdir(parents=True, exist_ok=True)
-            self._cache_path.write_text(
-                json.dumps({"fingerprint": fingerprint, "graph_json": graph_json}),
-                encoding="utf-8",
-            )
+            self._cache_dir.mkdir(parents=True, exist_ok=True)
+            (self._cache_dir / FINGERPRINT_FILE).write_text(fingerprint + "\n", encoding="utf-8")
+            (self._cache_dir / GRAPH_FILE).write_text(graph_json, encoding="utf-8")
             logger.info("[cache] saved")
         except Exception as e:
             logger.warning(f"Cache save failed: {e}")

@@ -12,6 +12,7 @@ decoupled from both the file watcher (input) and the web server (output).
 
 import json
 import logging
+import os
 import threading
 import time
 from pathlib import Path
@@ -91,10 +92,15 @@ class GraphStateManager:
             try:
                 self._previous_graph_data = self._graph_data.copy()
 
-                # 2A: Check disk cache for initial (full) analysis
+                config_path = next(
+                    (project_path / f for f in (".serpentine.yml", "serpentine.yml") if (project_path / f).exists()),
+                    None,
+                )
+
                 if changed_files is None:
+                    # Initial analysis: check disk cache first using a single directory scan.
                     source_files = self._find_source_files(project_path)
-                    cache = CacheManager(project_path, project_path / ".serpentine.toml")
+                    cache = CacheManager(project_path, config_path)
                     fp = cache.compute_fingerprint(source_files)
                     cached_json = cache.load(fp)
                     if cached_json is not None:
@@ -105,23 +111,27 @@ class GraphStateManager:
                         if self._broadcast_callback:
                             self._broadcast_callback()
                         return
-
-                # 2B: Use incremental Rust API when analyzer is already loaded
-                if changed_files is not None and self._analyzer is not None:
-                    self._do_incremental_analysis(project_path, changed_files)
+                    # Cache miss: full analysis reusing the already-discovered source_files.
+                    self._do_analysis(project_path, source_files)
+                    # Save using the fingerprint computed above — no re-scan needed.
+                    try:
+                        cache.save(fp, self._graph_json)
+                    except Exception as cache_err:
+                        logger.warning(f"Cache save failed: {cache_err}")
                 else:
-                    self._do_analysis(project_path)
-
-                # Persist result to disk cache for future CLI invocations
-                try:
-                    source_files = self._find_source_files(project_path)
-                    cache = CacheManager(project_path, project_path / ".serpentine.toml")
-                    fp = cache.compute_fingerprint(source_files)
-                    cache.save(fp, self._graph_json)
-                except Exception as cache_err:
-                    logger.warning(f"Cache save failed: {cache_err}")
-
-                if changed_files is not None:
+                    # File-watcher triggered re-analysis.
+                    if self._analyzer is not None:
+                        self._do_incremental_analysis(project_path, changed_files)
+                    else:
+                        self._do_analysis(project_path, self._find_source_files(project_path))
+                    # Persist updated graph so the next CLI invocation gets a warm cache.
+                    try:
+                        source_files = self._find_source_files(project_path)
+                        cache = CacheManager(project_path, config_path)
+                        fp = cache.compute_fingerprint(source_files)
+                        cache.save(fp, self._graph_json)
+                    except Exception as cache_err:
+                        logger.warning(f"Cache save failed: {cache_err}")
                     self._compute_change_status(changed_files)
 
                 logger.info(
@@ -136,7 +146,7 @@ class GraphStateManager:
                 logger.error(f"Analysis failed: {e}")
                 raise
 
-    def _do_analysis(self, project_path: Path) -> None:
+    def _do_analysis(self, project_path: Path, source_files: list[Path]) -> None:
         """Internal method to perform the actual analysis."""
         try:
             from serpentine import _analyzer
@@ -147,8 +157,6 @@ class GraphStateManager:
             # This ensures clean state and avoids stale file issues
             self._analyzer = _analyzer.FileManager()
 
-            # Find and load all source files
-            source_files = self._find_source_files(project_path)
             logger.info(f"[perf] found {len(source_files)} source files ({time.perf_counter() - t0:.3f}s)")
 
             t_read = time.perf_counter()
@@ -415,18 +423,20 @@ class GraphStateManager:
         self._deleted_edge_data.clear()
 
     def _find_source_files(self, project_path: Path) -> list[Path]:
-        """Find all supported source files in a project."""
+        """Find all supported source files in a project using a single directory walk."""
+        ext_set = set(self._config.extensions)
+        exclude_dirs = self._config.exclude_dirs
         files: list[Path] = []
 
-        for ext in self._config.extensions:
-            for file_path in project_path.rglob(f"*{ext}"):
-                # Skip excluded directories
-                if any(
-                    part.startswith(".") or part in self._config.exclude_dirs
-                    for part in file_path.parts
-                ):
-                    continue
-                files.append(file_path)
+        for dirpath, dirnames, filenames in os.walk(project_path):
+            # Prune excluded/hidden dirs in-place so os.walk never descends into them.
+            dirnames[:] = [
+                d for d in dirnames
+                if d not in exclude_dirs and not d.startswith(".")
+            ]
+            for filename in filenames:
+                if Path(filename).suffix in ext_set:
+                    files.append(Path(dirpath) / filename)
 
         return sorted(files)
 
