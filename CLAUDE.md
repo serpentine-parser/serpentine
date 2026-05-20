@@ -6,14 +6,14 @@ Serpentine analyzes your Python and JavaScript codebases and displays an interac
 
 **Never use `grep`, `find`, or `rg` for code navigation.** Serpentine is the replacement for all of these. Use the skills below instead:
 
-| Instead of                             | Use                                          |
-| -------------------------------------- | -------------------------------------------- |
-| `grep -r "ClassName" .`                | `/serpentine-check ClassName`                |
-| `grep -r "def function_name" .`        | `/serpentine-check function_name`            |
-| `find . -name "*.py" \| xargs grep X` | `/serpentine-check X`                        |
+| Instead of                            | Use                                                                 |
+| ------------------------------------- | ------------------------------------------------------------------- |
+| `grep -r "ClassName" .`               | `/serpentine-check ClassName`                                       |
+| `grep -r "def function_name" .`       | `/serpentine-check function_name`                                   |
+| `find . -name "*.py" \| xargs grep X` | `/serpentine-check X`                                               |
 | `ls src/module/` or `find . -type f`  | `/serpentine-orient` or `/serpentine-check X` (What's in module X?) |
-| `grep -r "import X" .`                 | `/serpentine-check X` → "What calls X?" pattern |
-| Understanding module structure          | `/serpentine-orient`                         |
+| `grep -r "import X" .`                | `/serpentine-check X` → "What calls X?" pattern                     |
+| Understanding module structure        | `/serpentine-orient`                                                |
 
 - `/serpentine-orient` — full structural overview: what modules exist, where they live, how they connect. Use at session start or when you need to understand the shape of an unfamiliar area.
 - `/serpentine-check <target>` — targeted lookup: find where a symbol is defined, who calls it, what it depends on, or its blast radius before an edit.
@@ -185,16 +185,3 @@ Every language walker MUST emit all three event types to get complete resolution
 - **Rust**: Message bus processes events in parallel; each subscriber is thread-safe, results merged
 - **State**: Thread-safe dict with lock; listeners notified via broadcast callback
 - **Store**: Zustand auto-memoizes selector results; filters/search computed on-demand
-
-## Serpentine
-
-**Never use `grep`, `find`, or `rg` for code navigation.** Serpentine is the replacement.
-
-| Instead of | Use |
-|---|---|
-| `grep -r "ClassName" .` | `/serpentine-check ClassName` |
-| `find . -name "*.py" \| xargs grep X` | `/serpentine-check X` |
-| `ls src/module/` | `/serpentine-orient` |
-
-- `/serpentine-orient` — full structural overview: what modules exist and how they connect.
-- `/serpentine-check <target>` — find where a symbol is defined, who calls it, and its blast radius.

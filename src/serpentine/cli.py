@@ -229,8 +229,20 @@ def serve(
     "--format",
     "fmt",
     type=click.Choice(["json", "text"]),
-    default="json",
-    help="Output format: json (default) or text (one line per item, agent-friendly)",
+    default="text",
+    help="Output format: text (default) or json",
+)
+@click.option(
+    "--source",
+    is_flag=True,
+    default=False,
+    help="Include source code blocks in text output (only with --format text)",
+)
+@click.option(
+    "--include-assignments",
+    is_flag=True,
+    default=False,
+    help="Include assignment nodes in text output (default: excluded, only with --format text)",
 )
 def analyze(
     path: str,
@@ -244,6 +256,8 @@ def analyze(
     edges_only: bool,
     state: str | None,
     fmt: str,
+    source: bool,
+    include_assignments: bool,
 ) -> None:
     """Analyze a project and output the dependency graph as JSON.
 
@@ -267,7 +281,7 @@ def analyze(
     )
 
     # Get the graph data as a dict for post-processing
-    graph_data = json.loads(state_manager.get_graph_json())
+    graph_data = state_manager.get_graph_data()
 
     # Filter by origin (strip standard/third-party nodes by default)
     if not include_standard or not include_third_party:
@@ -293,18 +307,33 @@ def analyze(
         _strip_cfg(graph_data.get("nodes", []))
 
     if fmt == "text":
-        if edges_only:
-            lines = [
-                f"{e.get('caller', e.get('source', ''))} → {e.get('callee', e.get('target', ''))}    {e.get('type', '')}"
-                for e in graph_data.get("edges", [])
-            ]
-        else:
-            flat: list[dict[str, Any]] = []
-            _flatten_nodes(graph_data.get("nodes", []), flat)
+        lines: list[str] = []
+        if source:
+            node_index = _build_node_index(graph_data.get("nodes", []))
             project_path_obj = Path(path).resolve()
+            edges_by_caller: dict[str, list[dict[str, Any]]] = {}
+            for e in graph_data.get("edges", []):
+                edges_by_caller.setdefault(e.get("caller", ""), []).append(e)
+            for node_id, node in node_index.items():
+                object_type = node.get("object_type", "")
+                if not include_assignments and object_type in {"assignment", "unknown"}:
+                    continue
+                pos = node.get("position", [0, 0])
+                rel = _rel_path(node.get("file_path", ""), project_path_obj)
+                lines.append(f"## {node_id}  [{object_type}]  {rel}:{pos[0]}-{pos[1]}")
+                if object_type in {"function", "class"}:
+                    code = node.get("code_block", "")
+                    if code:
+                        lines.append(code)
+                for e in edges_by_caller.get(node_id, []):
+                    lines.append(
+                        f"  --{e.get('type', 'calls')}--> {e.get('callee', '')}"
+                    )
+                lines.append("")
+        else:
             lines = [
-                f"{n.get('id', ''):<55}  {n.get('type', ''):<12}  {_rel_path(n.get('file_path', ''), project_path_obj)}"
-                for n in flat
+                f"{e.get('caller', '')} --{e.get('type', 'calls')}--> {e.get('callee', '')}"
+                for e in graph_data.get("edges", [])
             ]
         text_out = "\n".join(lines)
         if output:
@@ -354,10 +383,10 @@ def analyze(
     help="Output file path (default: stdout)",
 )
 @click.option(
-    "--no-assignments",
+    "--include-assignments",
     is_flag=True,
     default=False,
-    help="Exclude assignment nodes (variables) — keeps modules, classes, functions only",
+    help="Include assignment nodes (variables) in output (default: excluded)",
 )
 @click.option(
     "--pretty",
@@ -375,15 +404,15 @@ def analyze(
     "--format",
     "fmt",
     type=click.Choice(["json", "text"]),
-    default="json",
-    help="Output format: json (default) or text (one line per node, agent-friendly)",
+    default="text",
+    help="Output format: text (default) or json",
 )
 def catalog(
     path: str,
     filters: tuple[str, ...],
     include_standard: bool,
     include_third_party: bool,
-    no_assignments: bool,
+    include_assignments: bool,
     output: str | None,
     pretty: bool,
     state: str | None,
@@ -398,7 +427,7 @@ def catalog(
     Examples:
         serpentine catalog .
         serpentine catalog . --filter "auth*" --filter "login*"
-        serpentine catalog . --no-assignments --filter "auth*"
+        serpentine catalog . --include-assignments --filter "auth*"
         serpentine catalog . --include-third-party --pretty
     """
     project_path = Path(path).resolve()
@@ -412,7 +441,31 @@ def catalog(
         err=True,
     )
 
-    graph_data = json.loads(state_manager.get_graph_json())
+    graph_data = state_manager.get_graph_data()
+
+    if fmt == "text":
+        if not include_standard or not include_third_party:
+            graph_data = _filter_by_origin(
+                graph_data, include_standard, include_third_party
+            )
+        project_path_obj = Path(path).resolve()
+        state_filter = (
+            {s.strip() for s in state.split(",") if s.strip()} if state else None
+        )
+        lines = _render_catalog_text(
+            graph_data.get("nodes", []),
+            project_path_obj,
+            filters,
+            include_assignments,
+            state_filter,
+        )
+        text_out = "\n".join(lines)
+        if output:
+            Path(output).write_text(text_out)
+            click.echo(f"📄 Written to: {output}", err=True)
+        else:
+            click.echo(text_out)
+        return
 
     # Flatten tree into catalog entries
     flat_nodes: list[dict[str, Any]] = []
@@ -427,9 +480,11 @@ def catalog(
             and not (n.get("origin") == "third-party" and not include_third_party)
         ]
 
-    # Strip assignment nodes if requested
-    if no_assignments:
-        flat_nodes = [n for n in flat_nodes if n.get("type") != "assignment"]
+    # Strip assignment nodes unless included
+    if not include_assignments:
+        flat_nodes = [
+            n for n in flat_nodes if n.get("type") in ("module", "class", "function")
+        ]
 
     # Apply glob filters (union across all patterns, matched against id and name)
     if filters:
@@ -447,20 +502,6 @@ def catalog(
     if state:
         states = {s.strip() for s in state.split(",") if s.strip()}
         flat_nodes = [n for n in flat_nodes if n.get("change_status") in states]
-
-    if fmt == "text":
-        project_path_obj = Path(path).resolve()
-        lines = [
-            f"{n.get('id', ''):<55}  {n.get('type', ''):<12}  {_rel_path(n.get('file_path', ''), project_path_obj)}"
-            for n in flat_nodes
-        ]
-        text_out = "\n".join(lines)
-        if output:
-            Path(output).write_text(text_out)
-            click.echo(f"📄 Written to: {output}", err=True)
-        else:
-            click.echo(text_out)
-        return
 
     result = {
         "nodes": flat_nodes,
@@ -682,6 +723,72 @@ def init(path: str) -> None:
     click.echo("\nserpentine init complete:")
     for symbol, message in results:
         click.echo(f"  {symbol} {message}")
+
+
+def _build_node_index(
+    nodes: list[dict[str, Any]],
+    index: dict[str, dict[str, Any]] | None = None,
+) -> dict[str, dict[str, Any]]:
+    """Build an ordered dict of node_id → node in DFS traversal order."""
+    if index is None:
+        index = {}
+    for node in nodes:
+        index[node["id"]] = node
+        _build_node_index(node.get("children", []), index)
+    return index
+
+
+def _render_catalog_text(
+    nodes: list[dict[str, Any]],
+    project_path: Path,
+    filters: tuple[str, ...],
+    include_assignments: bool,
+    state_filter: set[str] | None,
+    depth: int = 1,
+    seen_files: set[str] | None = None,
+    lines: list[str] | None = None,
+) -> list[str]:
+    """Render a node tree as a file-grouped, indented text catalog."""
+    if lines is None:
+        lines = []
+    if seen_files is None:
+        seen_files = set()
+
+    for node in nodes:
+        object_type = node.get("object_type", "")
+        name = node.get("name", "")
+        node_id = node.get("id", "")
+
+        should_show = True
+        if not include_assignments and object_type in ["assignment", "unknown"]:
+            should_show = False
+        if state_filter and node.get("change_status") not in state_filter:
+            should_show = False
+        if filters and not any(
+            fnmatch.fnmatch(node_id, pat) or fnmatch.fnmatch(name, pat)
+            for pat in filters
+        ):
+            should_show = False
+
+        if should_show:
+            file_path = node.get("file_path", "")
+            if file_path and file_path not in seen_files:
+                lines.append(_rel_path(file_path, project_path))
+                seen_files.add(file_path)
+            lines.append(f"{'  ' * depth}{name}  [{object_type}]")
+
+        _render_catalog_text(
+            node.get("children", []),
+            project_path,
+            filters,
+            include_assignments,
+            state_filter,
+            depth + 1,
+            seen_files,
+            lines,
+        )
+
+    return lines
 
 
 def _rel_path(file_path: str, base: Path) -> str:
