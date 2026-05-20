@@ -414,4 +414,4 @@ These three events are the minimum required for the graph builder to resolve all
 
 ## License
 
-[Apache 2.0](LICENCE)
+[Apache 2.0](LICENSE)
