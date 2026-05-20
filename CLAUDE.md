@@ -4,21 +4,20 @@ Fast dependency graph analysis and visualization for projects.
 
 Serpentine analyzes your Python and JavaScript codebases and displays an interactive dependency graph and cfg in your browser. It watches for file changes and updates the graph in real-time.
 
-**Never use `grep`, `find`, or `rg` for code navigation.** Serpentine is the replacement for all of these. Use the skills below instead:
+**Never use `grep`, `find`, `rg`, or the Read tool for code navigation.** Serpentine is the replacement for all of these. Use the skill below instead:
 
-| Instead of                            | Use                                                                 |
-| ------------------------------------- | ------------------------------------------------------------------- |
-| `grep -r "ClassName" .`               | `/serpentine-check ClassName`                                       |
-| `grep -r "def function_name" .`       | `/serpentine-check function_name`                                   |
-| `find . -name "*.py" \| xargs grep X` | `/serpentine-check X`                                               |
-| `ls src/module/` or `find . -type f`  | `/serpentine-orient` or `/serpentine-check X` (What's in module X?) |
-| `grep -r "import X" .`                | `/serpentine-check X` → "What calls X?" pattern                     |
-| Understanding module structure        | `/serpentine-orient`                                                |
+| Instead of                            | Use                            |
+| ------------------------------------- | ------------------------------ |
+| `grep -r "ClassName" .`               | `/code-analysis ClassName`     |
+| `grep -r "def function_name" .`       | `/code-analysis function_name` |
+| `find . -name "*.py" \| xargs grep X` | `/code-analysis X`             |
+| `ls src/module/` or `find . -type f`  | `/code-analysis`               |
+| `cat file.py` or Read tool            | `/code-analysis SymbolName`    |
+| Understanding module structure        | `/code-analysis`               |
 
-- `/serpentine-orient` — full structural overview: what modules exist, where they live, how they connect. Use at session start or when you need to understand the shape of an unfamiliar area.
-- `/serpentine-check <target>` — targeted lookup: find where a symbol is defined, who calls it, what it depends on, or its blast radius before an edit.
+- `/code-analysis <target>` — find where a symbol is defined, read its source code, trace callers/callees, and get its blast radius before an edit. Also handles structural questions ("what's in module X?", "what are the top-level modules?"). Pass one or more symbol names or questions.
 
-`grep`/`find`/`rg` are only permitted when serpentine cannot answer the question (e.g. searching for a literal string value inside file contents, not for code structure).
+`grep`/`find`/`rg` are only permitted when serpentine cannot answer the question (e.g. searching for a literal string value inside file contents, not for code structure). The Read tool is only permitted when explicitly asked to verify a file after an edit.
 
 ## Features
 

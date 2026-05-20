@@ -54,16 +54,16 @@ analysis:
 _CLAUDE_MD_SECTION = """\
 ## Serpentine
 
-**Never use `grep`, `find`, or `rg` for code navigation.** Serpentine is the replacement.
+**Never use `grep`, `find`, `rg`, or the Read tool for code navigation.** Serpentine is the replacement.
 
 | Instead of | Use |
 |---|---|
-| `grep -r "ClassName" .` | `/serpentine-check ClassName` |
-| `find . -name "*.py" \\| xargs grep X` | `/serpentine-check X` |
-| `ls src/module/` | `/serpentine-orient` |
+| `grep -r "ClassName" .` | `/code-analysis ClassName` |
+| `find . -name "*.py" \\| xargs grep X` | `/code-analysis X` |
+| `ls src/module/` | `/code-analysis` |
+| `cat file.py` or Read tool | `/code-analysis SymbolName` |
 
-- `/serpentine-orient` — full structural overview: what modules exist and how they connect.
-- `/serpentine-check <target>` — find where a symbol is defined, who calls it, and its blast radius.
+- `/code-analysis <target>` — find where a symbol is defined, read its source, trace callers/callees, and check blast radius. Also handles structural questions ("what's in module X?").
 """
 
 
@@ -679,7 +679,7 @@ def init(path: str) -> None:
     if claude_dir.exists() and not claude_dir.is_dir():
         results.append(("✗", ".claude exists as a file — cannot install skills"))
     else:
-        for skill_name in ("serpentine-check", "serpentine-orient"):
+        for skill_name in ("code-analysis",):
             skill_target = claude_dir / "skills" / skill_name / "SKILL.md"
             rel = str(skill_target.relative_to(project_path))
             if skill_target.exists():
