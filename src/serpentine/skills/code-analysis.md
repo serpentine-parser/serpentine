@@ -12,23 +12,40 @@ This skill replaces `grep -r "X" .`, `find . -name "*.py"`, `cat file.py`, and a
 
 **Query:** $ARGUMENTS
 
-**Hard limit: 3 commands total.** If multiple targets are needed, combine them in one call with comma-separated selectors.
+**Hard limit: 3 commands total.** Combine multiple targets into one call — never run N separate `analyze` calls when one call with a graph operator or comma-union does the same job.
 
 ---
 
 ## Step 1 — Plan before running anything
 
-Classify the query, then write one sentence stating exactly which commands you'll run. Do not run anything until the plan is written.
+**First, pick a selector strategy** — do this before writing any command:
+
+| The query is about…                              | Selector strategy                                      |
+| ------------------------------------------------ | ------------------------------------------------------ |
+| A single symbol, no context needed               | `*.Symbol`                                             |
+| What calls a symbol ("who uses X?")              | `*.Symbol+` (downstream dependents)                   |
+| What a symbol calls ("what does X depend on?")   | `+*.Symbol` (upstream dependencies)                   |
+| A symbol plus one hop of context in both dirs    | `1+*.Symbol+1`                                        |
+| Full connected component (small graphs only)     | `@*.Symbol`                                           |
+| Multiple unrelated symbols in one shot           | `*.A,*.B,*.C` (comma-union)                           |
+| Multiple symbols discovered via `catalog`        | Collect all IDs, then ONE `analyze` with comma-union  |
+
+**Default to graph operators.** A flat `*.Symbol` selector is only appropriate when you need exactly one node with no context. For anything involving relationships, tracing, or multiple symbols, use an operator or comma-union instead of multiple calls.
+
+Then classify the query to determine the lookup path:
 
 | Query type | Commands to run |
 |---|---|
-| Known symbol name | `analyze . --select "*.Symbol" --source` → if no results: `catalog . --filter "*Symbol*"` then `analyze` with exact ID |
-| Keyword / unknown name | `catalog . --filter "*keyword*"` → `analyze` with discovered ID `--source` |
+| Known symbol name | `analyze . --select "<strategy>" --source` → if no results: `catalog . --filter "*Symbol*"` then `analyze` with exact ID |
+| Keyword / unknown name | `catalog . --filter "*keyword*"` → collect all relevant IDs → ONE `analyze . --select "*.A,*.B,..." --source` |
+| Relationship / context query | Skip catalog; go straight to `analyze` with the appropriate graph operator |
 | Project overview / scale | `stats .` → `catalog . --filter "*keyword*"` only if drill-down needed |
 
 **Never run `catalog` without `--filter`.** It outputs thousands of nodes. If you need an overview, use `stats`.
 
 **Never run `stats` unless the query is explicitly about project scale or structure.**
+
+**After `catalog`, always combine discovered IDs into a single `analyze` call.** Do not run one `analyze` per ID.
 
 ---
 

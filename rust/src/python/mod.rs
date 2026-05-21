@@ -311,7 +311,7 @@ fn walk_node_python(ctx: &ParseContext, node: Node, events: &mut Vec<Event>) {
         "case_clause" => emit_case_clause_events(ctx, node, events),
         "named_expression" => emit_named_expression_events(ctx, node, events),
         "list_comprehension" | "dictionary_comprehension" | "set_comprehension"
-        | "generator_expression" => emit_comprehension_events(ctx, node, events, kind),
+        | "generator_expression" => {}
         "lambda" => emit_lambda_events(ctx, node, events),
         "augmented_assignment" => emit_augmented_assignment_events(ctx, node, events),
         "global_statement" | "nonlocal_statement" => {
@@ -1461,42 +1461,6 @@ fn emit_named_expression_events(ctx: &ParseContext, node: Node, events: &mut Vec
     }
 }
 
-/// Emit events for comprehension expressions (list/dict/set/generator)
-fn emit_comprehension_events(
-    ctx: &ParseContext,
-    node: Node,
-    events: &mut Vec<Event>,
-    kind: &str,
-) {
-    let scope_name = format!(
-        "<{}>",
-        match kind {
-            "list_comprehension" => "listcomp",
-            "dictionary_comprehension" => "dictcomp",
-            "set_comprehension" => "setcomp",
-            "generator_expression" => "genexpr",
-            _ => kind,
-        }
-    );
-    let qualname = build_qualname(ctx, node, &scope_name);
-    // Emit both enter and exit immediately — comprehensions are not tracked via scope_info
-    events.push(Event::enter_scope(
-        ScopeType::Comprehension,
-        scope_name.clone(),
-        qualname.clone(),
-        vec![],
-        vec![],
-        node,
-        ctx.file_path,
-    ));
-    events.push(Event::exit_scope(
-        ScopeType::Comprehension,
-        scope_name,
-        qualname,
-        node,
-        ctx.file_path,
-    ));
-}
 
 /// Emit events for lambda expressions
 /// Note: enter_scope is emitted here; exit_scope is emitted by walk_node_python

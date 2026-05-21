@@ -15,7 +15,7 @@ Ask me what the intended behavior is, what the current output is, and how to rep
 
 Run `/code-analysis <suspected function or module>` on the area where the bug likely lives. Use the edges to trace the call chain and the source blocks to read the code — follow caller/callee relationships to find where the bad data or wrong behavior originates.
 
-If the bug could be in multiple places, run analysis on each candidate. If you don't know where to start, run `/code-analysis` with no arguments first to get the module boundaries.
+If the bug could be in multiple places, batch all candidates into a **single** `/code-analysis` call using comma-separated targets (e.g. `/code-analysis FuncA, FuncB, FuncC`) — do not invoke `/code-analysis` once per candidate. If you don't know where to start, run `/code-analysis` with no arguments first to get the module boundaries.
 
 Do not read files directly. Use the source blocks returned by the analysis instead.
 

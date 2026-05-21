@@ -9,7 +9,7 @@ Before writing any code for: $ARGUMENTS
 
 **Step 1 — Structural analysis**
 
-Run `/code-analysis` to get a codebase briefing — top-level modules, structure, and key files. Then identify which modules and functions this change will touch. For each one, run `/code-analysis <target>` to get its dependents, upstream dependencies, and source code.
+Run `/code-analysis` to get a codebase briefing — top-level modules, structure, and key files. Then identify which modules and functions this change will touch. Batch them into a **single** `/code-analysis` call using comma-separated targets or graph operators — do not invoke `/code-analysis` once per target.
 
 Use the results to understand:
 

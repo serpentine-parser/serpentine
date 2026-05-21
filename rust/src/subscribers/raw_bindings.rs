@@ -74,6 +74,8 @@ pub struct BindingNode {
     pub line: usize,
     /// Column number
     pub column: usize,
+    /// Argument texts for call nodes (populated for CALLS bindings)
+    pub arguments: Vec<String>,
 }
 
 impl BindingNode {
@@ -85,6 +87,7 @@ impl BindingNode {
             category: category.to_string(),
             line,
             column,
+            arguments: Vec::new(),
         }
     }
 
@@ -95,6 +98,11 @@ impl BindingNode {
 
     fn with_qualname(mut self, qualname: &str) -> Self {
         self.qualname = Some(qualname.to_string());
+        self
+    }
+
+    fn with_arguments(mut self, arguments: &[String]) -> Self {
+        self.arguments = arguments.to_vec();
         self
     }
 
@@ -110,6 +118,9 @@ impl BindingNode {
         }
         if let Some(qn) = &self.qualname {
             obj["qualname"] = serde_json::Value::String(qn.clone());
+        }
+        if !self.arguments.is_empty() {
+            obj["arguments"] = serde_json::json!(self.arguments);
         }
         obj
     }
@@ -269,10 +280,12 @@ impl RawBindingsSubscriber {
         // This will be enhanced when we add assignment value tracking
     }
 
-    fn handle_call_expression(&mut self, callee: &str, node_id: &str, line: usize, column: usize) {
-        // Create a CALLS binding from current scope to the callee
+    fn handle_call_expression(&mut self, callee: &str, arguments: &[String], node_id: &str, line: usize, column: usize) {
+        // Create a CALLS binding from current scope to the callee, carrying argument texts
         let source = BindingNode::new(&self.current_scope(), "scope", line, 0);
-        let target = BindingNode::new(callee, "call", line, column).with_node_id(node_id);
+        let target = BindingNode::new(callee, "call", line, column)
+            .with_node_id(node_id)
+            .with_arguments(arguments);
 
         self.bindings.push(RawBinding {
             source,
@@ -533,12 +546,13 @@ impl Subscriber for RawBindingsSubscriber {
             }
             Event::CallExpression {
                 callee,
+                arguments,
                 node_id,
                 line,
                 column,
                 ..
             } => {
-                self.handle_call_expression(callee, node_id, *line, *column);
+                self.handle_call_expression(callee, arguments, node_id, *line, *column);
                 self.add_contains_binding(node_id, "call", *line);
             }
             Event::UseName {

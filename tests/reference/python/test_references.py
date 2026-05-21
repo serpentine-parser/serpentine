@@ -222,3 +222,28 @@ def test_no_listcomp_node():
     for e in edges:
         assert "<listcomp>" not in e["caller"], f"Unexpected <listcomp> node as caller: {e}"
         assert "<listcomp>" not in e["callee"], f"Unexpected <listcomp> node as callee: {e}"
+
+
+def test_nested_call_arg_reference():
+    """x = outer(inner(y)) — y is an arg inside a nested call; x still references y."""
+    src = dedent("""\
+        def inner(a): pass
+        def outer(b): pass
+        def foo():
+            y = 1
+            x = outer(inner(y))
+    """)
+    edges = analyze_sources([("/fixture/mymod.py", src)])
+    assert_has_edge(edges, "mymod.foo.x", "mymod.foo.y", "references")
+
+
+def test_method_call_receiver_arg_reference():
+    """obj.write(data) inside a function — obj references data."""
+    src = dedent("""\
+        def foo():
+            data = "hello"
+            obj = open("f.txt", "w")
+            obj.write(data)
+    """)
+    edges = analyze_sources([("/fixture/mymod.py", src)])
+    assert_has_edge(edges, "mymod.foo.obj", "mymod.foo.data", "references")
