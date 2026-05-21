@@ -1,4 +1,7 @@
-.PHONY: dev dev-rebuild frontend-build frontend-dev install
+.PHONY: test dev dev-rebuild frontend-build frontend-dev install
+
+test:
+	uv run pytest tests/reference/ -v
 
 # Start Tilt dev environment with all services running in parallel
 dev:

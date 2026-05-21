@@ -4,7 +4,7 @@ version = "0.1.6"
 description = "Fast dependency graph analysis and visualization for Python, JavaScript/TypeScript, and Rust projects"
 readme = "README.md"
 requires-python = ">=3.10"
-license = { file = "LICENCE" }
+license = { file = "LICENSE" }
 authors = [
     { name = "Christopher Garretty" },
 ]
@@ -56,6 +56,8 @@ python-source = "src"
 include = [
     { path = "src/serpentine/static/**/*", format = "sdist" },
     { path = "src/serpentine/static/**/*", format = "wheel" },
+    { path = "src/serpentine/skills/**/*", format = "sdist" },
+    { path = "src/serpentine/skills/**/*", format = "wheel" },
 ]
 
 [dependency-groups]

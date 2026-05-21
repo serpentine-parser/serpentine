@@ -102,18 +102,21 @@ Options:
 
 ### `serpentine analyze`
 
-Analyze a project and output the full dependency graph as JSON.
+Analyze a project and output the code reference graph. Default format is text (one edge per line as `caller --type--> callee`); use `--format json` for structured output.
 
 ```
 serpentine analyze [PATH] [OPTIONS]
 
 Options:
   -o, --output PATH           Write output to file instead of stdout
-  --pretty                    Pretty-print JSON
+  --format TEXT               Output format: text (default) or json
+  --pretty                    Pretty-print JSON output
   --select TEXT               Selector expression to filter nodes (see below)
   --exclude TEXT              Exclusion pattern (same syntax as --select)
   --no-cfg                    Strip control-flow graph data from nodes
-  --edges-only                Output only the edges array (compact)
+  --edges-only                Output only the edges array (compact, json only)
+  --source                    Include source code blocks in text output
+  --include-assignments       Include variable/assignment nodes in text output
   --include-standard          Include stdlib nodes (default: off)
   --include-third-party       Include third-party nodes (default: off)
   --state TEXT                Filter by change state: modified,added,deleted
@@ -121,7 +124,7 @@ Options:
 
 ### `serpentine catalog`
 
-Flat list of all nodes — useful for discovering node IDs before building selectors.
+Flat list of all nodes. Default format is text (file-grouped hierarchy); use `--format json` to see node IDs for selector expressions.
 
 ```
 serpentine catalog [PATH] [OPTIONS]
@@ -129,9 +132,10 @@ serpentine catalog [PATH] [OPTIONS]
 Options:
   --filter TEXT               Glob pattern matched against node id and name
                               (repeatable; multiple patterns = union)
-  --no-assignments            Exclude variable/assignment nodes
+  --format TEXT               Output format: text (default) or json
+  --include-assignments       Include variable/assignment nodes (default: excluded)
   -o, --output PATH           Write output to file instead of stdout
-  --pretty                    Pretty-print JSON
+  --pretty                    Pretty-print JSON output
   --include-standard          Include stdlib nodes
   --include-third-party       Include third-party nodes
 ```
@@ -149,6 +153,19 @@ Options:
   --include-third-party       Include third-party nodes
 ```
 
+### `serpentine init`
+
+Set up Serpentine in an existing project.
+
+```
+serpentine init [PATH]
+
+Arguments:
+  PATH    Project directory (default: current directory)
+```
+
+Creates `.serpentine.yml` with default configuration, adds `.serpentine` to `.gitignore`, installs Claude Code skills (`serpentine-check` and `serpentine-orient`) to `.claude/skills/`, and appends a `## Serpentine` section to `CLAUDE.md` with navigation instructions. Already-existing files are skipped rather than overwritten.
+
 ---
 
 ## Querying the Graph
@@ -157,10 +174,10 @@ Options:
 
 ### Step 1 — Find your node IDs
 
-Every node has a dotted ID that reflects its location in the codebase. Use `catalog` to discover them:
+Every node has a dotted ID that reflects its location in the codebase. Use `catalog` with `--format json` to discover them:
 
 ```bash
-serpentine catalog . --no-assignments --pretty
+serpentine catalog . --format json --pretty
 ```
 
 This outputs a flat list of every module, class, and function with its ID:
@@ -179,10 +196,10 @@ Narrow it down with `--filter` (glob matched against both ID and name):
 
 ```bash
 # Find everything related to auth
-serpentine catalog . --filter "*auth*" --no-assignments --pretty
+serpentine catalog . --filter "*auth*" --format json --pretty
 
 # Find by name across modules
-serpentine catalog . --filter "*User*" --no-assignments --pretty
+serpentine catalog . --filter "*User*" --format json --pretty
 ```
 
 ### Step 2 — Select nodes and their dependencies
@@ -301,7 +318,7 @@ analysis:
 
 ## Using Serpentine with AI Agents
 
-Serpentine's CLI is designed to be consumed by AI coding agents (Claude, Cursor, Copilot, etc.). The structured JSON output, selector syntax, and `--edges-only` / `--no-assignments` flags exist specifically to give agents precise, low-noise subgraphs without requiring file reads.
+Serpentine's CLI is designed to be consumed by AI coding agents (Claude, Cursor, Copilot, etc.). The structured output, selector syntax, and `--edges-only` flag exist specifically to give agents precise, low-noise subgraphs without requiring file reads.
 
 ### The problem it solves
 
@@ -320,7 +337,7 @@ Serpentine collapses that exploration into 2-3 CLI calls. The agent gets a struc
 serpentine stats .
 
 # 2. Find relevant node IDs by name
-serpentine catalog . --filter "*auth*" --no-assignments --pretty
+serpentine catalog . --filter "*auth*" --format json --pretty
 
 # 3. Get the subgraph for the relevant area
 serpentine analyze . --select "+src.auth.*+" --no-cfg --edges-only --pretty
@@ -337,7 +354,7 @@ Use `--select "module+"` to map everything that depends on the module before wri
 Use `--select "+moduleA.*,+moduleB.*"` to get the combined subgraph of two areas and understand exactly where they intersect. The boundaries of the work become clear before any code is written.
 
 **Orienting to an unfamiliar codebase**
-`serpentine stats` gives you the top-level module list and scale. `serpentine catalog . --no-assignments` gives a flat index of every class and function. Together these give structural orientation without reading a single file.
+`serpentine stats` gives you the top-level module list and scale. `serpentine catalog .` gives a flat index of every class and function. Together these give structural orientation without reading a single file.
 
 **Before deleting code**
 Use `--select "*.TargetFunction+"` to get all downstream dependents. An empty result confirms the code is truly unused.
@@ -347,7 +364,7 @@ Use `--select "+*.entrypoint+3"` to get 3 hops downstream from an entry point an
 
 ### Claude Code skill
 
-This repository includes a Claude Code skill at `.claude/commands/serpentine.md`. If you're using Claude Code in a project analyzed by Serpentine, you can copy this file into your project's `.claude/commands/` directory. It instructs Claude to use Serpentine as its first step before reading files or grepping — running `stats`, then `catalog`, then `analyze` in sequence before answering structural questions or planning changes.
+Run `serpentine init` in any project to install the Claude Code skill and configure Serpentine. This installs the `code-analysis` skill to `.claude/skills/`, which instructs Claude to use Serpentine's CLI instead of reading files or grepping — running `stats`, `catalog`, and `analyze` to get source code and structural context in a single token-efficient pass.
 
 ---
 
@@ -414,4 +431,4 @@ These three events are the minimum required for the graph builder to resolve all
 
 ## License
 
-[Apache 2.0](LICENCE)
+[Apache 2.0](LICENSE)

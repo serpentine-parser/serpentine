@@ -44,3 +44,17 @@ def test_constructor_with_args():
     """)
     edges = analyze_sources([("/fixture/mymod.py", mymod)])
     assert_has_edge(edges, "mymod.x", "mymod.C", "has-a")
+
+
+def test_with_statement_has_a():
+    """with Foo() as x: — x has-a Foo."""
+    src = dedent("""\
+        class Foo:
+            def __enter__(self): return self
+            def __exit__(self, *a): pass
+        def bar():
+            with Foo() as x:
+                pass
+    """)
+    edges = analyze_sources([("/fixture/mymod.py", src)])
+    assert_has_edge(edges, "mymod.bar.x", "mymod.Foo", "has-a")

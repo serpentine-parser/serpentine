@@ -211,6 +211,7 @@ pub enum ScopeType {
     Function,
     Class,
     Lambda,
+    #[expect(dead_code)]
     Comprehension,
     /// Structural type contract: TypeScript interface/object-shape type, Rust trait, etc.
     Interface,
