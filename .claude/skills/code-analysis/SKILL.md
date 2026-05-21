@@ -2,8 +2,6 @@
 name: code-analysis
 description: Full code navigation — replaces grep, glob, and file reads. Find symbol definitions, trace callers and callees, read source code, and map module structure. Pass symbol names or questions as arguments.
 argument-hint: <symbol-name or question>
-context: fork
-model: claude-haiku-4-5-20251001
 allowed-tools: Bash
 ---
 
@@ -13,119 +11,101 @@ This skill replaces `grep -r "X" .`, `find . -name "*.py"`, `cat file.py`, and a
 
 **Query:** $ARGUMENTS
 
+**Hard limit: 3 commands total.** If multiple targets are needed, combine them in one call with comma-separated selectors.
+
 ---
 
-## Step 1 — Orient and locate
+## Step 1 — Plan before running anything
 
-Run stats to understand project scale and top-level modules:
+Classify the query, then write one sentence stating exactly which commands you'll run. Do not run anything until the plan is written.
 
-```bash
-uv run serpentine stats . --pretty
-```
+| Query type | Commands to run |
+|---|---|
+| Known symbol name | `analyze . --select "*.Symbol" --source` → if no results: `catalog . --filter "*Symbol*"` then `analyze` with exact ID |
+| Keyword / unknown name | `catalog . --filter "*keyword*"` → `analyze` with discovered ID `--source` |
+| Project overview / scale | `stats .` → `catalog . --filter "*keyword*"` only if drill-down needed |
 
-Then locate the target(s) by name:
+**Never run `catalog` without `--filter`.** It outputs thousands of nodes. If you need an overview, use `stats`.
 
-```bash
-uv run serpentine catalog . --filter "*<target>*"
-```
+**Never run `stats` unless the query is explicitly about project scale or structure.**
 
-Use multiple `--filter` flags for multiple targets (combined as a union). For a structural question with no specific target, omit the filter:
+---
 
-```bash
-uv run serpentine catalog .
-```
+## Step 2 — Execute
 
-**Inferring node IDs from the output:**
-
-The text output groups symbols by file. Construct node IDs by converting the file path to a dotted prefix (strip extension, replace `/` with `.`), then appending each indented name:
-
-```
-src/serpentine/watcher.py        → prefix: serpentine.watcher
-  FileWatcher  [class]           → id: serpentine.watcher.FileWatcher
-    start  [function]            → id: serpentine.watcher.FileWatcher.start
-```
-
-Use these IDs (or name-based wildcards like `*.FileWatcher`) in Step 2 selectors.
-
-## Step 2 — Analyze (up to 5 calls)
-
-Pick the pattern(s) that match the query. Start with one well-crafted call; run additional calls (up to 5 total) only if the first result is incomplete or multiple distinct targets need separate treatment.
-
-**Read source code for a target** (replaces file reads — includes outgoing edges):
+**Read source + edges for a known symbol** (the default — use this first):
 
 ```bash
 uv run serpentine analyze . --select "*.Target" --source
 ```
 
-**Trace callers ("who uses X?"):**
+**Trace callers ("who uses X?") with source:**
 
 ```bash
-uv run serpentine analyze . --select "*.Target+"
+uv run serpentine analyze . --select "*.Target+" --source
 ```
 
-**Trace dependencies ("what does X depend on?"):**
+**Trace dependencies ("what does X use?") with source:**
 
 ```bash
-uv run serpentine analyze . --select "+*.Target"
+uv run serpentine analyze . --select "+*.Target" --source
 ```
 
-**Full blast radius (both directions):**
+**Both directions, bounded** (avoid unbounded `+*.Target+` on large graphs):
 
 ```bash
-uv run serpentine analyze . --select "+*.Target+"
-```
-
-**Full connected component:**
-
-```bash
-uv run serpentine analyze . --select "@*.Target"
+uv run serpentine analyze . --select "1+*.Target+1" --source
 ```
 
 **Read an entire module's source:**
 
 ```bash
-uv run serpentine analyze . --select "serpentine.module.*" --source
+uv run serpentine analyze . --select "module.submodule.*" --source
 ```
 
-**Multiple targets in one call** (comma-separated, union):
+**Multiple targets in one call** (comma-separated, union — use instead of separate calls):
 
 ```bash
-uv run serpentine analyze . --select "+*.TargetA,+*.TargetB"
+uv run serpentine analyze . --select "*.TargetA,*.TargetB" --source
 ```
 
-Combine `--source` when code content is needed alongside structural analysis.
+**Locate a symbol when the exact ID is unknown:**
+
+```bash
+uv run serpentine catalog . --filter "*keyword*"
+```
+
+Infer node IDs from catalog output: `src/serpentine/watcher.py` + `FileWatcher [class]` → `serpentine.watcher.FileWatcher`. Use `*.FileWatcher` as a wildcard in analyze selectors.
+
+---
 
 ## Step 3 — Report
 
-Return all of the following to the main agent:
+Return to the main agent:
 
-- **Description**: what this symbol/module is and what it does, inferred from name, type, location, and edges
 - **Defined in**: exact file path(s)
-- **Relevant files**: every file that appears in the analysis output
-- **Code blocks**: all source blocks from `--source` output, verbatim and untruncated
+- **Description**: what the symbol does, inferred from name, type, and edges
+- **Code blocks**: all `--source` output verbatim and untruncated
 - **Edges**: callers, callees, and cross-module connections relevant to the query
 - **Blast radius** (pre-edit queries only): external callers outside the target's module — verdict: SAFE / BREAKING / UNKNOWN
+- **Relevant files**: every file appearing in the output
 
 Do not truncate code blocks. Do not speculate beyond what the structure shows.
+
+---
 
 ## Selector reference
 
 | Pattern       | Meaning                                |
 | ------------- | -------------------------------------- |
-| `pattern`     | Matching nodes only                    |
+| `*.Symbol`    | Symbol by name, any module             |
 | `+pattern`    | Pattern + upstream dependencies        |
 | `pattern+`    | Pattern + downstream dependents        |
-| `+pattern+`   | Both directions                        |
-| `@pattern`    | Full connected component               |
 | `N+pattern+M` | Bounded hops: N upstream, M downstream |
+| `@pattern`    | Full connected component               |
 
-| You want                  | Use                    | NOT                  |
-| ------------------------- | ---------------------- | -------------------- |
-| Nodes containing "auth"   | `*auth*`               | `auth*`              |
-| Children of a module      | `serpentine.module.*`  | `module*`            |
-| A specific class anywhere | `*.FileWatcher`        | `FileWatcher*`       |
-
-## Additional resources
-
-- For complete API details, see [reference.md](reference.md)
-- For usage examples, see [examples.md](examples.md)
+| You want                  | Use                   | NOT            |
+| ------------------------- | --------------------- | -------------- |
+| Nodes containing "auth"   | `*auth*`              | `auth*`        |
+| Children of a module      | `serpentine.module.*` | `module*`      |
+| A specific class anywhere | `*.FileWatcher`       | `FileWatcher*` |

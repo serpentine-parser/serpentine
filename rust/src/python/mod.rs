@@ -1036,6 +1036,78 @@ fn emit_define_identifiers_in(ctx: &ParseContext, target_node: Node, scope_node:
     }
 }
 
+/// Emit DefineName + Assignment events for a single `with_item` that has an `as` alias.
+///
+/// Handles the `as_pattern_target` wrapper that tree-sitter inserts around the bound identifier:
+///   with_item { value: call_expr, alias: as_pattern_target { identifier } }
+fn emit_with_item_bindings(ctx: &ParseContext, with_item: Node, scope_node: Node, events: &mut Vec<Event>) {
+    // In tree-sitter-python 0.20.x, with_item only has a "value" field.
+    // For `with Foo() as x:`, the value is an as_pattern node:
+    //   as_pattern { Foo() "as" alias: as_pattern_target("x") }
+    // In newer grammar versions, with_item has separate "value" and "alias" fields.
+    let value_field = with_item.child_by_field_name("value");
+    let alias_field = with_item.child_by_field_name("alias");
+
+    let (cm_node, alias_node) = match (value_field, alias_field) {
+        (Some(v), Some(a)) => (v, a),
+        (Some(v), None) if v.kind() == "as_pattern" => {
+            let alias = match v.child_by_field_name("alias") {
+                Some(n) => n,
+                None => return,
+            };
+            let cm = match v.named_child(0) {
+                Some(n) => n,
+                None => return,
+            };
+            (cm, alias)
+        }
+        _ => return,
+    };
+
+    // alias_node is "as_pattern_target" (a tree-sitter alias for expression) or "identifier".
+    // For a simple `x`, as_pattern_target is a leaf; use it directly.
+    let ident_node = if alias_node.kind() == "as_pattern_target" {
+        match alias_node.child(0) {
+            Some(child) if child.kind() == "identifier" => child,
+            Some(_) => return,
+            None => alias_node, // leaf: the node itself carries the identifier text
+        }
+    } else {
+        alias_node
+    };
+
+    if ident_node.kind() != "identifier" && ident_node.kind() != "as_pattern_target" {
+        return;
+    }
+
+    let name = get_node_text(ctx, ident_node);
+    if name.is_empty() {
+        return;
+    }
+    let qualname = build_qualname(ctx, scope_node, &name);
+
+    events.push(Event::define_name(
+        name.clone(),
+        qualname.clone(),
+        "variable",
+        ident_node,
+        ctx.file_path,
+    ));
+
+    // Synthetic Assignment: the ASSIGNED pass builds a has-a edge from the alias
+    // to the context manager class (e.g. `x --has-a--> Foo` for `with Foo() as x:`).
+    let value_text = get_node_text(ctx, cm_node);
+    let value_type = classify_value_type(cm_node.kind());
+    events.push(Event::assignment(
+        name,
+        qualname,
+        value_text,
+        value_type,
+        scope_node,
+        ctx.file_path,
+    ));
+}
+
 /// Emit events for control flow blocks
 fn emit_control_block_events(ctx: &ParseContext, node: Node, events: &mut Vec<Event>, kind: &str) {
     let block_type = match kind {
@@ -1105,15 +1177,11 @@ fn emit_control_block_events(ctx: &ParseContext, node: Node, events: &mut Vec<Ev
                 let mut clause_cursor = child.walk();
                 for with_item in child.children(&mut clause_cursor) {
                     if with_item.kind() == "with_item" {
-                        if let Some(alias_node) = with_item.child_by_field_name("alias") {
-                            emit_define_identifiers_in(ctx, alias_node, node, events);
-                        }
+                        emit_with_item_bindings(ctx, with_item, node, events);
                     }
                 }
             } else if child.kind() == "with_item" {
-                if let Some(alias_node) = child.child_by_field_name("alias") {
-                    emit_define_identifiers_in(ctx, alias_node, node, events);
-                }
+                emit_with_item_bindings(ctx, child, node, events);
             }
         }
     }

@@ -590,7 +590,7 @@ impl GraphBuilder {
                     }
 
                     // Emit data-flow edges from call arguments to the LHS variable.
-                    // For `x = f(a, b)` → `x --calls--> a` and `x --calls--> b`,
+                    // For `x = f(a, b)` → `x --references--> a` and `x --references--> b`,
                     // showing which sibling variables x's construction depended on.
                     // These are sibling→sibling edges and survive the ancestor filter.
                     let args = extract_call_args(target_text);
@@ -615,7 +615,7 @@ impl GraphBuilder {
                                 && self.definitions.contains_key(source_qualname)
                                 && self.definitions.contains_key(&resolved_arg)
                             {
-                                self.edges.insert(EdgeData::new(source_qualname, &resolved_arg, "calls"));
+                                self.edges.insert(EdgeData::new(source_qualname, &resolved_arg, "references"));
                             }
                         }
                     }

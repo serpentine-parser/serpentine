@@ -270,15 +270,8 @@ def analyze(
         serpentine analyze --select "auth*" --exclude "test_*" --no-cfg --pretty
     """
     project_path = Path(path).resolve()
-    click.echo(f"📂 Analyzing: {project_path}", err=True)
-
     state_manager = GraphStateManager(project_path)
     state_manager.analyze_project(project_path)
-
-    click.echo(
-        f"✅ Found {state_manager.node_count} nodes, {state_manager.edge_count} edges",
-        err=True,
-    )
 
     # Get the graph data as a dict for post-processing
     graph_data = state_manager.get_graph_data()
@@ -431,15 +424,8 @@ def catalog(
         serpentine catalog . --include-third-party --pretty
     """
     project_path = Path(path).resolve()
-    click.echo(f"📂 Analyzing: {project_path}", err=True)
-
     state_manager = GraphStateManager(project_path)
     state_manager.analyze_project(project_path)
-
-    click.echo(
-        f"✅ Found {state_manager.node_count} nodes, {state_manager.edge_count} edges",
-        err=True,
-    )
 
     graph_data = state_manager.get_graph_data()
 
