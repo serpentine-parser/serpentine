@@ -1,0 +1,52 @@
+---
+import Base from '../../layouts/Base.astro';
+---
+
+<Base title="Blog — Serpentine">
+  <div class="blog-shell">
+    <div class="blog-header">
+      <div class="section-label">Blog</div>
+      <h1>Notes on code intelligence</h1>
+      <p class="blog-sub">Releases, deep dives, and agent workflows.</p>
+    </div>
+
+    <div class="blog-empty">
+      <p>Posts coming soon.</p>
+    </div>
+  </div>
+</Base>
+
+<style>
+.blog-shell {
+  margin-top: 56px;
+  max-width: 720px;
+  margin-left: auto;
+  margin-right: auto;
+  padding: 4rem 2rem 6rem;
+}
+
+.blog-header {
+  margin-bottom: 3rem;
+  padding-bottom: 2.5rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.blog-header h1 {
+  font-size: clamp(1.75rem, 3vw, 2.5rem);
+  font-weight: 300;
+  letter-spacing: -0.02em;
+  margin-bottom: 0.5rem;
+  margin-top: 0.75rem;
+}
+
+.blog-sub {
+  color: var(--text-muted);
+  font-weight: 300;
+}
+
+.blog-empty {
+  color: var(--text-dim);
+  font-size: 0.875rem;
+  font-style: italic;
+}
+</style>
