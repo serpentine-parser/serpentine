@@ -590,8 +590,10 @@ impl GraphBuilder {
                     }
 
                     // Emit data-flow edges from call arguments to the LHS variable.
-                    // For `x = f(a, b)` → `x --calls--> a` and `x --calls--> b`,
+                    // For `x = f(a, b)` → `x --references--> a` and `x --references--> b`,
                     // showing which sibling variables x's construction depended on.
+                    // Handles nested calls like `x = outer(inner(y))` → `x --references--> y`
+                    // by recursively extracting identifiers from complex argument expressions.
                     // These are sibling→sibling edges and survive the ancestor filter.
                     let args = extract_call_args(target_text);
                     let scope_prefix = format!("{}.", scope);
@@ -603,19 +605,26 @@ impl GraphBuilder {
                         } else {
                             arg
                         };
-                        // Only simple identifiers — skip expressions
-                        if value_str.is_empty()
-                            || !value_str.chars().all(|c| c.is_alphanumeric() || c == '_')
-                        {
+                        if value_str.is_empty() {
                             continue;
                         }
-                        if let Some(resolved_arg) = self.resolve_name_legb(scope, value_str) {
-                            // Only link to sibling local variables in the same function scope
-                            if resolved_arg.starts_with(&scope_prefix)
-                                && self.definitions.contains_key(source_qualname)
-                                && self.definitions.contains_key(&resolved_arg)
-                            {
-                                self.edges.insert(EdgeData::new(source_qualname, &resolved_arg, "calls"));
+                        // For simple identifiers resolve directly; for complex expressions
+                        // (e.g. nested calls like `inner(y)`) extract all identifier tokens.
+                        let idents: Vec<String> =
+                            if value_str.chars().all(|c| c.is_alphanumeric() || c == '_') {
+                                vec![value_str.to_string()]
+                            } else {
+                                extract_identifier_refs(value_str)
+                            };
+                        for ident in &idents {
+                            if let Some(resolved_arg) = self.resolve_name_legb(scope, ident) {
+                                // Only link to sibling local variables in the same function scope
+                                if resolved_arg.starts_with(&scope_prefix)
+                                    && self.definitions.contains_key(source_qualname)
+                                    && self.definitions.contains_key(&resolved_arg)
+                                {
+                                    self.edges.insert(EdgeData::new(source_qualname, &resolved_arg, "references"));
+                                }
                             }
                         }
                     }
@@ -948,6 +957,79 @@ impl GraphBuilder {
                         }
                         if self.definitions.contains_key(&resolved) {
                             self.edges.insert(EdgeData::new(&caller, &resolved, "calls"));
+                        }
+                    }
+
+                    // For method calls on local variables (`obj.method(arg)`), emit
+                    // `obj --references--> arg` for each local-variable argument.
+                    // This captures the data-flow dependency: obj "uses" its arguments.
+                    if caller != scope && callee_text.contains('.') {
+                        let call_args: Vec<String> = target_obj
+                            .get("arguments")
+                            .and_then(|a| a.as_array())
+                            .map(|arr| {
+                                arr.iter()
+                                    .filter_map(|v| v.as_str().map(String::from))
+                                    .collect()
+                            })
+                            .unwrap_or_default();
+                        let scope_prefix = format!("{}.", scope);
+                        for arg_text in &call_args {
+                            let idents: Vec<String> =
+                                if arg_text.chars().all(|c| c.is_alphanumeric() || c == '_') {
+                                    vec![arg_text.clone()]
+                                } else {
+                                    extract_identifier_refs(arg_text)
+                                };
+                            for ident in &idents {
+                                if let Some(resolved_arg) = self.resolve_name_legb(scope, ident) {
+                                    if resolved_arg.starts_with(&scope_prefix)
+                                        && self.definitions.contains_key(&caller)
+                                        && self.definitions.contains_key(&resolved_arg)
+                                    {
+                                        self.edges.insert(EdgeData::new(&caller, &resolved_arg, "references"));
+                                    }
+                                }
+                            }
+                        }
+                    }
+                } else if callee_text.contains('.') {
+                    // resolve_callee returned None (method not in definitions), but if the
+                    // receiver is a known local variable we can still emit
+                    // `recv --references--> arg` to capture the data-flow dependency.
+                    let first = callee_text.split('.').next().unwrap_or("");
+                    if !first.is_empty() {
+                        if let Some(recv) = self.resolve_name_legb(scope, first) {
+                            let top = recv.split('.').next().unwrap_or(&recv);
+                            if self.local_prefixes.contains(top) && self.definitions.contains_key(&recv) {
+                                let call_args: Vec<String> = target_obj
+                                    .get("arguments")
+                                    .and_then(|a| a.as_array())
+                                    .map(|arr| {
+                                        arr.iter()
+                                            .filter_map(|v| v.as_str().map(String::from))
+                                            .collect()
+                                    })
+                                    .unwrap_or_default();
+                                let scope_prefix = format!("{}.", scope);
+                                for arg_text in &call_args {
+                                    let idents: Vec<String> =
+                                        if arg_text.chars().all(|c| c.is_alphanumeric() || c == '_') {
+                                            vec![arg_text.clone()]
+                                        } else {
+                                            extract_identifier_refs(arg_text)
+                                        };
+                                    for ident in &idents {
+                                        if let Some(resolved_arg) = self.resolve_name_legb(scope, ident) {
+                                            if resolved_arg.starts_with(&scope_prefix)
+                                                && self.definitions.contains_key(&resolved_arg)
+                                            {
+                                                self.edges.insert(EdgeData::new(&recv, &resolved_arg, "references"));
+                                            }
+                                        }
+                                    }
+                                }
+                            }
                         }
                     }
                 }

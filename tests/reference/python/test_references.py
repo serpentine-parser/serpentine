@@ -173,3 +173,77 @@ def test_imported_type_annotation():
         [("/fixture/pkg/types.py", types), ("/fixture/main.py", main)]
     )
     assert_has_edge(edges, "main.f", "pkg.types.T", "references")
+
+
+def test_assignment_references_name():
+    """x = y inside a function — x references y."""
+    src = dedent("""\
+        def foo():
+            y = 1
+            x = y
+    """)
+    edges = analyze_sources([("/fixture/mymod.py", src)])
+    assert_has_edge(edges, "mymod.foo.x", "mymod.foo.y", "references")
+
+
+def test_assignment_references_call_arg():
+    """x = foo(y) inside a function — x references y (argument used in RHS)."""
+    src = dedent("""\
+        def bar(a): pass
+        def foo():
+            y = 1
+            x = bar(y)
+    """)
+    edges = analyze_sources([("/fixture/mymod.py", src)])
+    assert_has_edge(edges, "mymod.foo.x", "mymod.foo.y", "references")
+
+
+def test_assignment_references_attribute():
+    """x = obj.attr inside a function — x references obj."""
+    src = dedent("""\
+        class C:
+            pass
+        def foo():
+            obj = C()
+            x = obj.value
+    """)
+    edges = analyze_sources([("/fixture/mymod.py", src)])
+    assert_has_edge(edges, "mymod.foo.x", "mymod.foo.obj", "references")
+
+
+def test_no_listcomp_node():
+    """List comprehension must not create a <listcomp> node."""
+    src = dedent("""\
+        def foo():
+            items = [1, 2, 3]
+            result = [x * 2 for x in items]
+    """)
+    edges = analyze_sources([("/fixture/mymod.py", src)])
+    for e in edges:
+        assert "<listcomp>" not in e["caller"], f"Unexpected <listcomp> node as caller: {e}"
+        assert "<listcomp>" not in e["callee"], f"Unexpected <listcomp> node as callee: {e}"
+
+
+def test_nested_call_arg_reference():
+    """x = outer(inner(y)) — y is an arg inside a nested call; x still references y."""
+    src = dedent("""\
+        def inner(a): pass
+        def outer(b): pass
+        def foo():
+            y = 1
+            x = outer(inner(y))
+    """)
+    edges = analyze_sources([("/fixture/mymod.py", src)])
+    assert_has_edge(edges, "mymod.foo.x", "mymod.foo.y", "references")
+
+
+def test_method_call_receiver_arg_reference():
+    """obj.write(data) inside a function — obj references data."""
+    src = dedent("""\
+        def foo():
+            data = "hello"
+            obj = open("f.txt", "w")
+            obj.write(data)
+    """)
+    edges = analyze_sources([("/fixture/mymod.py", src)])
+    assert_has_edge(edges, "mymod.foo.obj", "mymod.foo.data", "references")

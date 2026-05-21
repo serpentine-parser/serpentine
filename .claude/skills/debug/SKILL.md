@@ -2,7 +2,7 @@
 name: debug
 description: Diagnose and fix a bug or unexpected behavior. Traces the problem through the dependency graph, adds logging if needed, and proposes a fix. Use when something is broken, producing wrong output, or behaving unexpectedly.
 argument-hint: <description of the bug or unexpected behavior>
-allowed-tools: Bash Read Edit Skill
+allowed-tools: Bash Edit Skill
 ---
 
 Diagnose and fix: $ARGUMENTS
@@ -13,11 +13,11 @@ Ask me what the intended behavior is, what the current output is, and how to rep
 
 **Step 2 — Trace through the graph**
 
-Run `/serpentine-check <suspected function or module>` on the area where the bug likely lives. Use the edges to trace the call chain — follow `from`/`to` relationships to find where the bad data or wrong behavior originates.
+Run `/code-analysis <suspected function or module>` on the area where the bug likely lives. Use the edges to trace the call chain and the source blocks to read the code — follow caller/callee relationships to find where the bad data or wrong behavior originates.
 
-If the bug could be in multiple places, run check on each candidate. If you don't know where to start, run `/serpentine-orient` first to find the relevant module boundaries.
+If the bug could be in multiple places, batch all candidates into a **single** `/code-analysis` call using comma-separated targets (e.g. `/code-analysis FuncA, FuncB, FuncC`) — do not invoke `/code-analysis` once per candidate. If you don't know where to start, run `/code-analysis` with no arguments first to get the module boundaries.
 
-Only read files that the analysis identifies as part of the call chain.
+Do not read files directly. Use the source blocks returned by the analysis instead.
 
 **Step 3 — Narrow down**
 
@@ -25,7 +25,7 @@ Don't overthink. If the graph narrows it to a few files but you're unsure which 
 
 **Step 4 — Diagnose**
 
-Write a brief diagnosis: what's broken, why, and which callsites are affected (from the serpentine check). Share it with me before proposing a fix.
+Write a brief diagnosis: what's broken, why, and which callsites are affected (from the code-analysis results). Share it with me before proposing a fix.
 
 **Step 5 — Wait for approval**
 

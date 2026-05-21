@@ -42,6 +42,17 @@ def test_builtin_call():
     assert_has_edge(edges, "mymod.x", "builtins.len", "calls")
 
 
+def test_assignment_rhs_calls():
+    """x = foo() inside a function — x calls foo."""
+    src = dedent("""\
+        def foo(): pass
+        def bar():
+            x = foo()
+    """)
+    edges = analyze_sources([("/fixture/mymod.py", src)])
+    assert_has_edge(edges, "mymod.bar.x", "mymod.foo", "calls")
+
+
 def test_method_call_on_local_instance():
     """Calling a method on an instance of a locally-defined class."""
     mymod = dedent("""\

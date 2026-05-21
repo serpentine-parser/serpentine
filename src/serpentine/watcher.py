@@ -155,7 +155,7 @@ class _DebouncedEventHandler(FileSystemEventHandler):
     def on_any_event(self, event: FileSystemEvent) -> None:
         """Handle any file system event."""
         dest = getattr(event, "dest_path", None)
-        logger.warning(
+        logger.debug(
             f"[watcher] {event.__class__.__name__} type={event.event_type}"
             f" src={event.src_path}" + (f" dest={dest}" if dest else "")
         )
@@ -225,5 +225,5 @@ class _DebouncedEventHandler(FileSystemEventHandler):
             self._pending_files.clear()
             self._pending_callback = None
 
-        logger.warning(f"[watcher] firing callback: {changed_files}")
+        logger.debug(f"[watcher] firing callback: {changed_files}")
         self._callback(changed_files)
