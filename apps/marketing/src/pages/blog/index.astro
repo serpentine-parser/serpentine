@@ -1,5 +1,10 @@
 ---
+import { getCollection } from 'astro:content';
 import Base from '../../layouts/Base.astro';
+
+const posts = (await getCollection('blog')).sort(
+  (a, b) => b.data.pubDate.getTime() - a.data.pubDate.getTime()
+);
 ---
 
 <Base title="Blog — Serpentine">
@@ -10,9 +15,21 @@ import Base from '../../layouts/Base.astro';
       <p class="blog-sub">Releases, deep dives, and agent workflows.</p>
     </div>
 
-    <div class="blog-empty">
-      <p>Posts coming soon.</p>
-    </div>
+    <ul class="post-list">
+      {posts.map((post) => (
+        <li class="post-item">
+          <a href={`/blog/${post.slug}`} class="post-link">
+            <div class="post-date">
+              {post.data.pubDate.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}
+            </div>
+            <h2 class="post-title">{post.data.title}</h2>
+            {post.data.description && (
+              <p class="post-excerpt">{post.data.description}</p>
+            )}
+          </a>
+        </li>
+      ))}
+    </ul>
   </div>
 </Base>
 
@@ -44,9 +61,48 @@ import Base from '../../layouts/Base.astro';
   font-weight: 300;
 }
 
-.blog-empty {
+.post-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.post-item {
+  border-bottom: 1px solid var(--border);
+}
+
+.post-link {
+  display: block;
+  padding: 2rem 0;
+  text-decoration: none;
+  color: inherit;
+  transition: opacity 0.15s;
+}
+
+.post-link:hover .post-title {
+  color: var(--accent);
+}
+
+.post-date {
+  font-size: 0.8125rem;
+  font-family: 'Fira Code', monospace;
   color: var(--text-dim);
-  font-size: 0.875rem;
-  font-style: italic;
+  margin-bottom: 0.5rem;
+}
+
+.post-title {
+  font-size: 1.25rem;
+  font-weight: 300;
+  letter-spacing: -0.01em;
+  margin: 0 0 0.5rem;
+  transition: color 0.15s;
+}
+
+.post-excerpt {
+  color: var(--text-muted);
+  font-size: 0.9375rem;
+  font-weight: 300;
+  line-height: 1.6;
+  margin: 0;
 }
 </style>

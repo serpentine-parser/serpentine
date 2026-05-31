@@ -12,7 +12,7 @@ Navigate to any Python, JavaScript/TypeScript, or Rust project and run:
 serpentine serve
 ```
 
-Serpentine will analyze the project, start a local server at `http://127.0.0.1:8765`, and open the interactive graph in your browser. File changes are detected automatically and the graph updates in real time via WebSocket.
+Serpentine will analyze the project, start a local server at `http://127.0.0.1:8765`, and open the interactive graph in your browser. File changes are detected automatically and the graph updates in real time via WebSocket. See the [UI Overview](/docs/ui/overview) for a tour of the interface.
 
 ## The agent-oriented workflow
 
@@ -23,13 +23,13 @@ If you're using Serpentine to give an AI agent structural context, the workflow 
 serpentine stats .
 
 # 2. Find relevant node IDs by name
-serpentine catalog . --filter "*auth*" --format json --pretty
+serpentine catalog . --filter "*auth*"
 
-# 3. Get the subgraph for the relevant area
-serpentine analyze . --select "+src.auth.*+" --no-cfg --edges-only --pretty
+# 3. Get the subgraph and source for the relevant area
+serpentine analyze . --select "*auth*.*" --source
 ```
 
-Read the edges to understand what connects to what, then read only the files that are actually relevant.
+Read the source and edges to understand what connects to what, then read only the files that are actually relevant. For a walkthrough of how this works in practice, see [Why I Give Claude a Dependency Graph Instead of File Dumps](/blog/why-i-give-claude-a-dependency-graph).
 
 ## Wire it into Claude Code
 

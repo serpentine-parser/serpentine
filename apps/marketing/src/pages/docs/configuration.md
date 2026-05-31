@@ -19,34 +19,46 @@ Run `serpentine init` to generate a starter config with all defaults filled in. 
 
 ## Full example
 
+This is the default configuration — equivalent to running with no config file at all. Only include what you want to change.
+
 ```yaml
 analysis:
-  # File extensions to analyze (default: all supported)
+  # File extensions to analyze
   extensions: [".py", ".js", ".jsx", ".ts", ".tsx", ".rs"]
 
-  # Directories to skip
+  # Directories to skip (matched by name, not path)
   exclude_dirs:
-    - node_modules
+    - __pycache__
+    - .git
     - .venv
+    - venv
+    - node_modules
+    - .mypy_cache
+    - .pytest_cache
+    - .tox
     - dist
     - build
-    - .git
-    - __pycache__
+    - static
+    - .next
+    - .nuxt
+    - coverage
+    - .egg-info
+    - target
 
-  # Glob patterns for files to skip
-  exclude_patterns:
-    - "**/*.test.ts"
-    - "**/*.spec.py"
-    - "**/generated/**"
-    - "**/migrations/**"
+  # Glob patterns for files to skip (default: none)
+  exclude_patterns: []
 ```
 
 ## Options reference
 
 ### `analysis.extensions`
 
-List of file extensions to include in analysis. Defaults to all supported extensions:
-`.py`, `.js`, `.jsx`, `.ts`, `.tsx`, `.rs`.
+List of file extensions to include in analysis. Default: all supported extensions.
+
+```yaml
+# Default
+extensions: [".py", ".js", ".jsx", ".ts", ".tsx", ".rs"]
+```
 
 Restrict to a subset if your project mixes languages but you only need one:
 
@@ -57,21 +69,64 @@ analysis:
 
 ### `analysis.exclude_dirs`
 
-Directory names (not paths) to skip entirely. The default exclusion list covers common build and dependency directories.
+Directory names (not paths) to skip entirely. Overrides the default list entirely when set, so include any defaults you still want.
 
-Add project-specific directories:
+Default:
+
+```yaml
+exclude_dirs:
+  - __pycache__
+  - .git
+  - .venv
+  - venv
+  - node_modules
+  - .mypy_cache
+  - .pytest_cache
+  - .tox
+  - dist
+  - build
+  - static
+  - .next
+  - .nuxt
+  - coverage
+  - .egg-info
+  - target
+```
+
+To add project-specific directories, include the defaults plus your additions:
 
 ```yaml
 analysis:
   exclude_dirs:
-    - node_modules
+    - __pycache__
+    - .git
     - .venv
+    - venv
+    - node_modules
+    - .mypy_cache
+    - .pytest_cache
+    - .tox
+    - dist
+    - build
+    - static
+    - .next
+    - .nuxt
+    - coverage
+    - .egg-info
+    - target
     - my_generated_code
 ```
 
 ### `analysis.exclude_patterns`
 
-Glob patterns matched against file paths relative to the project root. Useful for excluding generated code, test fixtures, or vendored dependencies.
+Glob patterns matched against file paths relative to the project root. Default: none.
+
+```yaml
+# Default
+exclude_patterns: []
+```
+
+Useful for excluding generated code, test fixtures, or vendored dependencies:
 
 ```yaml
 analysis:

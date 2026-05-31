@@ -23,10 +23,10 @@ const GITHUB = 'https://github.com/serpentine-parser/serpentine';
     </h1>
 
     <p class="hero-sub">
-      Your agent's first move is usually the most expensive.
-      Serpentine gives it a structural picture of your codebase —
-      every reference between every named entity, resolved to the
-      definition — before it reads a single file.
+      Your agent's first move is usually the most expensive:
+      building context through <code>grep</code>, <code>find</code>, and reading files.
+      <span style="color: #34d399; font-weight: bold">Serpentine</span> gives it a structural picture of your codebase —
+      every reference between every definition — before it reads a single file.
     </p>
 
     <div
@@ -38,6 +38,9 @@ const GITHUB = 'https://github.com/serpentine-parser/serpentine';
       <span class="copy-hint">click to copy</span>
     </div>
 
+    <p class="hero-sub"><span>then in your project</span></p>
+
+
     <!-- Claude Code panel — static, no tabs needed -->
     <div class="agent-switcher">
       <div class="agent-command">
@@ -46,7 +49,6 @@ const GITHUB = 'https://github.com/serpentine-parser/serpentine';
             <div class="agent-icon">C</div>
             Claude Code
           </div>
-          <span>then in your project</span>
         </div>
         <div class="agent-command-body">
           <div class="line">
@@ -77,7 +79,7 @@ const GITHUB = 'https://github.com/serpentine-parser/serpentine';
       callsites halfway through. The session fills up, quality drops,
       and you're left fixing code that was already working.
     </p>
-    <p>This is context rot. It starts at line one.</p>
+    <p>Avoid context rot, and get better results.</p>
   </section>
 
   <!-- HOW IT WORKS -->
@@ -209,37 +211,12 @@ const GITHUB = 'https://github.com/serpentine-parser/serpentine';
       />
     </div>
 
-    <ul class="human-bullets">
-      <li>The utility it built from scratch instead of reusing the one two modules over</li>
-      <li>The function with no callers — written, but never wired in</li>
-      <li>The architecture that looks fine in code but wrong as a picture</li>
-    </ul>
-
     <p class="human-note">
       You don't have to read every file to know if you like what's
       being built. This part is for the developers who still want to
       know what's happening in their codebase. In 2026, that's not
       everyone. But if it's you, it's here.
     </p>
-
-    <div class="edge-legend">
-      <div class="edge-item">
-        <div class="edge-dot" style="background: var(--calls)"></div>
-        calls
-      </div>
-      <div class="edge-item">
-        <div class="edge-dot" style="background: var(--hasa)"></div>
-        has-a
-      </div>
-      <div class="edge-item">
-        <div class="edge-dot" style="background: var(--isa)"></div>
-        is-a
-      </div>
-      <div class="edge-item">
-        <div class="edge-dot" style="background: var(--ref)"></div>
-        references
-      </div>
-    </div>
   </section>
 
   <!-- INIT -->

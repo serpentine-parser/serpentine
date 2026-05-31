@@ -6,52 +6,69 @@ description: Slice the code reference graph down to exactly the nodes you care a
 
 `serpentine analyze` and `serpentine catalog` accept `--select` and `--exclude` to filter the graph down to just the nodes you care about. This is essential for large codebases where the full graph is too noisy, and for feeding precise context into AI agents.
 
+## Graph operators
+
+Selectors support graph operators that expand a matched node to include its neighbors in the reference graph. The operator syntax is inspired by [dbt's node selection](https://docs.getdbt.com/reference/node-selection/graph-operators) — if you've used dbt, the `+` and `@` operators will feel familiar.
+
+| Selector | Meaning |
+|----------|---------|
+| `pattern` | Only the matching nodes |
+| `+pattern` | Matching nodes **plus** everything they depend on (upstream) |
+| `pattern+` | Matching nodes **plus** everything that depends on them (downstream) |
+| `+pattern+` | Both directions — the full blast radius |
+| `N+pattern+M` | Bounded: N hops upstream, M hops downstream |
+| `@pattern` | The full connected component — everything reachable in any direction |
+
+**Prefer bounded hops on large codebases.** `+pattern+` is unbounded and can return the entire graph if the matched node is central. Use `N+pattern+M` to limit traversal depth.
+
 ## Step 1 — Find your node IDs
 
-Every node has a dotted ID that reflects its location in the codebase. Use `catalog` with `--format json` to discover them:
-
-```bash
-serpentine catalog . --format json --pretty
-```
-
-Narrow it down with `--filter` (glob matched against both ID and name):
+Every node has a dotted ID that reflects its location in the codebase. Use `catalog` with `--filter` to discover them:
 
 ```bash
 # Find everything related to auth
-serpentine catalog . --filter "*auth*" --format json --pretty
+serpentine catalog . --filter "*auth*"
 
-# Find by name across modules
-serpentine catalog . --filter "*User*" --format json --pretty
+# Find a class anywhere in the project
+serpentine catalog . --filter "*User*"
+```
+
+Wildcard selectors like `*.ClassName` work directly in `--select` without needing to look up the full ID first:
+
+```bash
+# Matches any node named "User" regardless of module path
+serpentine analyze . --select "*.User" --no-cfg --pretty
 ```
 
 ## Step 2 — Select nodes and their dependencies
 
-Once you have IDs, use `--select` with `serpentine analyze`.
-
 ### Plain pattern — just the matching nodes
 
 ```bash
-serpentine analyze --select "src.auth.*" --no-cfg --pretty
+serpentine analyze . --select "src.auth.*" --no-cfg --pretty
 ```
 
 ### `+pattern` — matching nodes plus everything they depend on (upstream)
 
 ```bash
 # What does the login view need to work?
-serpentine analyze --select "+src.auth.views.login" --no-cfg --pretty
+serpentine analyze . --select "+*.login" --no-cfg --pretty
 ```
 
 ### `pattern+` — matching nodes plus everything that depends on them (downstream)
 
 ```bash
 # What breaks if I change the User model?
-serpentine analyze --select "src.auth.models.User+" --no-cfg --pretty
+serpentine analyze . --select "*.User+" --no-cfg --pretty
 ```
 
-### `+pattern+` — both directions (full blast radius)
+### `N+pattern+M` — bounded hops
+
+Limit traversal depth to avoid pulling in the entire graph:
 
 ```bash
-serpentine analyze --select "+src.payments.*+" --no-cfg --pretty
+# 2 levels upstream, 1 level downstream from the login view
+serpentine analyze . --select "2+*.login+1" --no-cfg --pretty
 ```
 
 ### `@pattern` — the full connected component
@@ -59,20 +76,13 @@ serpentine analyze --select "+src.payments.*+" --no-cfg --pretty
 Everything reachable in any direction from the matching nodes:
 
 ```bash
-serpentine analyze --select "@src.auth.*" --no-cfg --pretty
-```
-
-### Bounded hops — limit traversal depth
-
-```bash
-# 2 levels upstream, 1 level downstream
-serpentine analyze --select "2+src.auth.views.login+1" --no-cfg --pretty
+serpentine analyze . --select "@src.auth.*" --no-cfg --pretty
 ```
 
 ### Multiple selectors — combined as a union
 
 ```bash
-serpentine analyze --select "+src.auth.*,+src.payments.*" --no-cfg --pretty
+serpentine analyze . --select "+src.auth.*,+src.payments.*" --no-cfg --pretty
 ```
 
 ## Step 3 — Exclude noise
@@ -81,7 +91,7 @@ serpentine analyze --select "+src.auth.*,+src.payments.*" --no-cfg --pretty
 
 ```bash
 # Show auth and its deps, but skip test files
-serpentine analyze --select "+src.auth.*" --exclude "*test*" --no-cfg --pretty
+serpentine analyze . --select "+src.auth.*" --exclude "*test*" --no-cfg --pretty
 ```
 
 ## Glob pattern rules
@@ -102,7 +112,7 @@ serpentine analyze --select "+src.auth.*" --exclude "*test*" --no-cfg --pretty
 Use `--edges-only` to get just the edge list — much smaller than the full node tree, and sufficient for agents that only need to trace call chains:
 
 ```bash
-serpentine analyze --select "+src.auth.*+" --edges-only --pretty
+serpentine analyze . --select "1+*.login+2" --edges-only --pretty
 ```
 
 Output:
