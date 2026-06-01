@@ -9,8 +9,10 @@ const GITHUB = 'https://github.com/serpentine-parser/serpentine';
   <!-- HERO -->
   <section class="hero">
     <div class="hero-bg"></div>
+    <canvas id="hero-canvas" aria-hidden="true"></canvas>
     <div class="hero-grid"></div>
 
+    <div class="hero-glass">
     <div class="hero-badge">
       <span class="dot"></span>
       v0.2.0 · Apache 2.0
@@ -41,25 +43,57 @@ const GITHUB = 'https://github.com/serpentine-parser/serpentine';
     <p class="hero-sub"><span>then in your project</span></p>
 
 
-    <!-- Claude Code panel — static, no tabs needed -->
+    <!-- Harness switcher -->
     <div class="agent-switcher">
+      <div class="agent-tabs">
+        <button class="agent-tab active" data-harness="claude">
+          <!-- Anthropic "A" mark -->
+          <svg class="tab-icon" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+            <path d="M8 2 2.5 14h3l1-2.5h3l1 2.5h3L8 2Zm0 3.5 1.1 3.5H6.9L8 5.5Z" fill="#d97706"/>
+          </svg>
+          Claude Code
+        </button>
+        <button class="agent-tab" data-harness="cursor">
+          <!-- Cursor arrow mark -->
+          <svg class="tab-icon" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+            <path d="M3 2 13 8 8 9.5 6 15Z" fill="#818cf8"/>
+          </svg>
+          Cursor
+        </button>
+        <button class="agent-tab" data-harness="copilot">
+          <!-- GitHub mark -->
+          <svg class="tab-icon" viewBox="0 0 16 16" fill="#94a3b8" aria-hidden="true">
+            <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0 0 16 8c0-4.42-3.58-8-8-8Z"/>
+          </svg>
+          Copilot
+        </button>
+        <button class="agent-tab" data-harness="codex">
+          <!-- OpenAI mark -->
+          <svg class="tab-icon" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+            <path d="M13.5 6.37A3.88 3.88 0 0 0 10.07 2a3.9 3.9 0 0 0-3.72 2.75A3.38 3.38 0 0 0 2.5 7.9a3.38 3.38 0 0 0 1.63 4.7A3.88 3.88 0 0 0 7.93 16a3.9 3.9 0 0 0 3.72-2.75A3.38 3.38 0 0 0 13.5 6.37ZM10.07 15a2.88 2.88 0 0 1-2.76-2.1l-.05-.18.17-.1 1.43-.82.15-.09.15.09 1.43.82-.05.18A2.88 2.88 0 0 1 10.07 15ZM3.5 11.25a2.38 2.38 0 0 1 0-2.5l.1-.17.17.1 1.43.82.15.09v1.64l-.15.09-1.43.82-.17.1ZM5.35 5.6l-.05-.18A2.88 2.88 0 0 1 7.93 3a2.9 2.9 0 0 1 2.76 2.1l.05.18-.17.1-1.43.82-.15.09H7.5l-.15-.09-1.43-.82Zm8.15 3.15-.1.17-.17-.1-1.43-.82-.15-.09V6.27l.15-.09 1.43-.82.17-.1.1.17a2.38 2.38 0 0 1 0 3.32Z" fill="#10a37f"/>
+          </svg>
+          Codex
+        </button>
+        <button class="agent-tab" data-harness="opencode">
+          <!-- Terminal prompt -->
+          <svg class="tab-icon" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+            <path d="M2.5 5.5 6.5 8l-4 2.5" stroke="#64748b" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M8.5 10.5H13" stroke="#64748b" stroke-width="1.5" stroke-linecap="round"/>
+          </svg>
+          OpenCode
+        </button>
+      </div>
       <div class="agent-command">
-        <div class="agent-command-bar">
-          <div class="agent-bar-left">
-            <div class="agent-icon">C</div>
-            Claude Code
-          </div>
-        </div>
         <div class="agent-command-body">
-          <div class="line">
+          <div class="line" id="harness-cmd">
             <span class="prompt">$</span>
             <span>serpentine init</span>
           </div>
         </div>
-        <div class="agent-command-note">
-          Installs skills to <code>.claude/skills/</code> and
-          updates <code>CLAUDE.md</code>. Claude Code orients
-          structurally on every task from here on.
+        <div class="agent-command-note" id="harness-note">
+          Installs <code>.claude/skills/code-analysis/</code> and
+          appends to <code>CLAUDE.md</code>. Detected automatically
+          if <code>.claude/</code> is present.
         </div>
       </div>
     </div>
@@ -67,6 +101,7 @@ const GITHUB = 'https://github.com/serpentine-parser/serpentine';
     <div class="hero-ctas">
       <a href="/docs/getting-started/installation" class="btn btn-primary">Get started →</a>
       <a href={GITHUB} class="btn btn-secondary" target="_blank" rel="noopener">View on GitHub</a>
+    </div>
     </div>
   </section>
 
@@ -231,13 +266,11 @@ const GITHUB = 'https://github.com/serpentine-parser/serpentine';
       <div class="init-code">
         <pre><span class="c-dim">$</span> <span class="c-green">serpentine init</span>
 
-<span class="c-dim">✓</span> <span class="c-white">Created .serpentine.yml</span>
-<span class="c-dim">✓</span> <span class="c-white">Updated .gitignore</span>
-<span class="c-dim">✓</span> <span class="c-blue">Installed .claude/skills/serpentine-orient</span>
-<span class="c-dim">✓</span> <span class="c-blue">Installed .claude/skills/serpentine-check</span>
-<span class="c-dim">✓</span> <span class="c-white">Updated CLAUDE.md</span>
-
-<span class="c-dim">Done. Your agent orients structurally by default.</span></pre>
+<span class="c-dim">serpentine init complete (claude):</span>
+<span class="c-dim">  ✓</span> <span class="c-white">.serpentine.yml created</span>
+<span class="c-dim">  ✓</span> <span class="c-white">.gitignore updated</span>
+<span class="c-dim">  ✓</span> <span class="c-blue">.claude/skills/code-analysis/SKILL.md installed</span>
+<span class="c-dim">  ✓</span> <span class="c-white">CLAUDE.md updated</span></pre>
       </div>
       <div class="init-desc">
         <p>
@@ -249,8 +282,8 @@ const GITHUB = 'https://github.com/serpentine-parser/serpentine';
           told it to this session, but because it's wired in.
         </p>
         <p>
-          Works with any agent that reads
-          <code>CLAUDE.md</code> or supports skills.
+          Auto-detects which harnesses are in use. Pass
+          <code>--harness</code> to target one explicitly.
         </p>
         <div class="compat-tags">
           <span class="compat-tag">Claude Code</span>
@@ -297,13 +330,39 @@ const GITHUB = 'https://github.com/serpentine-parser/serpentine';
   overflow: hidden;
 }
 
+.hero > *:not(canvas):not(.hero-bg):not(.hero-grid) {
+  position: relative;
+  z-index: 1;
+}
+
 .hero-bg {
   position: absolute;
   inset: 0;
   background:
-    radial-gradient(ellipse 60% 50% at 50% 0%, rgba(74,222,128,0.07) 0%, transparent 70%),
-    radial-gradient(ellipse 40% 30% at 20% 80%, rgba(96,165,250,0.04) 0%, transparent 60%);
+    radial-gradient(ellipse 130% 70% at 40% -10%,
+      rgba(32,251,152,0.08) 0%,
+      rgba(6,182,212,0.04) 50%,
+      transparent 72%
+    ),
+    radial-gradient(ellipse 55% 45% at 92% 8%,
+      rgba(196,255,94,0.05) 0%,
+      rgba(32,251,152,0.02) 55%,
+      transparent 75%
+    );
+  mask-image: linear-gradient(to bottom, black 45%, transparent 82%);
+  -webkit-mask-image: linear-gradient(to bottom, black 45%, transparent 82%);
   pointer-events: none;
+}
+
+.hero-bg::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 512 512' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.72' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  background-repeat: repeat;
+  background-size: 256px 256px;
+  opacity: 0.045;
+  mix-blend-mode: overlay;
 }
 
 .hero-grid {
@@ -316,6 +375,25 @@ const GITHUB = 'https://github.com/serpentine-parser/serpentine';
   opacity: 0.3;
   mask-image: radial-gradient(ellipse 80% 60% at 50% 40%, black 20%, transparent 80%);
   pointer-events: none;
+}
+
+.hero-glass {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 2rem 2.5rem 1.75rem;
+  max-width: 640px;
+  width: 100%;
+  background: rgba(13, 15, 14, 0.42);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(52, 211, 153, 0.1);
+  border-radius: 16px;
+  box-shadow:
+    0 0 0 1px rgba(255,255,255,0.04) inset,
+    0 4px 32px rgba(0,0,0,0.3);
 }
 
 .hero-badge {
@@ -342,7 +420,7 @@ const GITHUB = 'https://github.com/serpentine-parser/serpentine';
 }
 
 .hero h1 {
-  font-size: clamp(2.5rem, 6vw, 4.5rem);
+  font-size: clamp(2rem, 5vw, 3.25rem);
   font-weight: 300;
   line-height: 1.1;
   letter-spacing: -0.03em;
@@ -399,51 +477,65 @@ const GITHUB = 'https://github.com/serpentine-parser/serpentine';
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 0.75rem;
+  gap: 0;
   margin-bottom: 1.75rem;
   animation: fadeUp 0.5s 0.35s ease both;
   width: 100%;
   max-width: 480px;
 }
 
+.agent-tabs {
+  display: flex;
+  width: 100%;
+  border: 1px solid var(--border2);
+  border-bottom: none;
+  border-radius: 8px 8px 0 0;
+  overflow: hidden;
+}
+
+.agent-tab {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.3rem;
+  background: var(--surface2);
+  border: none;
+  border-right: 1px solid var(--border);
+  padding: 0.45rem 0.25rem;
+  font-family: 'DM Mono', monospace;
+  font-size: 0.65rem;
+  color: var(--text-dim);
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+  white-space: nowrap;
+}
+
+.tab-icon {
+  width: 11px;
+  height: 11px;
+  flex-shrink: 0;
+}
+
+.agent-tab:last-child { border-right: none; }
+
+.agent-tab:hover { background: var(--surface); color: var(--text-muted); }
+
+.agent-tab.active {
+  background: var(--surface);
+  color: var(--accent);
+  border-bottom: 1px solid var(--surface);
+  margin-bottom: -1px;
+  position: relative;
+  z-index: 1;
+}
+
 .agent-command {
   width: 100%;
   background: var(--surface);
   border: 1px solid var(--border2);
-  border-radius: 8px;
+  border-radius: 0 0 8px 8px;
   overflow: hidden;
-}
-
-.agent-command-bar {
-  background: var(--surface2);
-  border-bottom: 1px solid var(--border);
-  padding: 0.4rem 0.85rem;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  font-family: 'DM Mono', monospace;
-  font-size: 0.68rem;
-  color: var(--text-dim);
-}
-
-.agent-bar-left {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-}
-
-.agent-icon {
-  background: #d97706;
-  color: #fff;
-  width: 14px;
-  height: 14px;
-  border-radius: 3px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 9px;
-  font-weight: 700;
-  flex-shrink: 0;
 }
 
 .agent-command-body {
@@ -910,9 +1002,143 @@ const GITHUB = 'https://github.com/serpentine-parser/serpentine';
   justify-content: center;
 }
 
+#hero-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 0;
+  mask-image: linear-gradient(to bottom, black 50%, transparent 88%);
+  -webkit-mask-image: linear-gradient(to bottom, black 50%, transparent 88%);
+}
+
 /* ─── Responsive ─── */
 @media (max-width: 700px) {
   .trio-grid    { grid-template-columns: 1fr; }
   .init-block   { grid-template-columns: 1fr; }
+  #hero-canvas  { display: none; }
 }
 </style>
+
+<script>
+(function () {
+  type HarnessKey = 'claude' | 'cursor' | 'copilot' | 'codex' | 'opencode';
+  const HARNESS: Record<HarnessKey, { cmd: string; note: string }> = {
+    claude: {
+      cmd: 'serpentine init',
+      note: 'Installs <code>.claude/skills/code-analysis/</code> and appends to <code>CLAUDE.md</code>. Detected automatically if <code>.claude/</code> is present.',
+    },
+    cursor: {
+      cmd: 'serpentine init --harness cursor',
+      note: 'Installs <code>.cursor/rules/serpentine.mdc</code>. Detected automatically if <code>.cursor/</code> is present.',
+    },
+    copilot: {
+      cmd: 'serpentine init --harness copilot',
+      note: 'Appends a Serpentine section to <code>.github/copilot-instructions.md</code>.',
+    },
+    codex: {
+      cmd: 'serpentine init --harness codex',
+      note: 'Appends a Serpentine section to <code>AGENTS.md</code>.',
+    },
+    opencode: {
+      cmd: 'serpentine init --harness opencode',
+      note: 'Appends a Serpentine section to <code>AGENTS.md</code>. Detected automatically if <code>.opencode/</code> is present.',
+    },
+  };
+
+  const tabs = document.querySelectorAll<HTMLElement>('.agent-tab');
+  const cmdEl = document.getElementById('harness-cmd');
+  const noteEl = document.getElementById('harness-note');
+
+  tabs.forEach(tab => {
+    tab.addEventListener('click', () => {
+      tabs.forEach(t => t.classList.remove('active'));
+      tab.classList.add('active');
+      const key = tab.dataset.harness as HarnessKey;
+      const h = HARNESS[key];
+      if (cmdEl) cmdEl.innerHTML = `<span class="prompt">$</span><span>${h.cmd}</span>`;
+      if (noteEl) noteEl.innerHTML = h.note;
+    });
+  });
+})();
+
+(function () {
+  const canvas = document.getElementById('hero-canvas') as HTMLCanvasElement;
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return;
+
+  type Line = {
+    y0f: number; cp1xf: number; cp1yf: number;
+    cp2xf: number; cp2yf: number; y1f: number;
+    alpha: number; width: number; color: string;
+  };
+
+  // CP1 at x=0.44 keeps lines lazy/flat near their start.
+  // CP2 at x=0.74 snaps them to their final position in the right third,
+  // creating a crossing cluster similar to the reference.
+  // cp1yf === y0f and cp2yf === y1f gives flat horizontal tangents at both ends.
+  // cp1xf/cp2xf near 0.5 concentrates the bend in the center, like pulling a midpoint handle in Illustrator.
+  const LINES: Line[] = [
+    { y0f:0.08, cp1xf:0.42, cp1yf:0.08, cp2xf:0.58, cp2yf:0.62, y1f:0.62, alpha:0.28, width:2.5, color:'#34d399' },
+    { y0f:0.14, cp1xf:0.45, cp1yf:0.14, cp2xf:0.55, cp2yf:0.46, y1f:0.46, alpha:0.14, width:0.5, color:'#c4ff5e' },
+    { y0f:0.20, cp1xf:0.40, cp1yf:0.20, cp2xf:0.60, cp2yf:0.10, y1f:0.10, alpha:0.22, width:1.8, color:'#20fb98' },
+    { y0f:0.26, cp1xf:0.46, cp1yf:0.26, cp2xf:0.54, cp2yf:0.05, y1f:0.05, alpha:0.13, width:0.4, color:'#818cf8' },
+    { y0f:0.30, cp1xf:0.42, cp1yf:0.30, cp2xf:0.58, cp2yf:0.55, y1f:0.55, alpha:0.25, width:3.0, color:'#34d399' },
+    { y0f:0.34, cp1xf:0.44, cp1yf:0.34, cp2xf:0.56, cp2yf:0.22, y1f:0.22, alpha:0.16, width:0.9, color:'#22d3ee' },
+    { y0f:0.38, cp1xf:0.41, cp1yf:0.38, cp2xf:0.59, cp2yf:0.68, y1f:0.68, alpha:0.10, width:1.3, color:'#a3e635' },
+  ];
+
+  let animating = true;
+
+  function draw(now = 0) {
+    if (!animating) return;
+    const W = canvas.width;
+    const H = canvas.height;
+    ctx.clearRect(0, 0, W, H);
+
+    for (let i = 0; i < LINES.length; i++) {
+      const l = LINES[i];
+      const phase = i * 1.1;
+      const speed = 0.00035 + i * 0.00004;
+      const amp   = 0.05;
+      const cp1y  = l.cp1yf + Math.sin(now * speed + phase) * amp;
+      const cp2y  = l.cp2yf + Math.sin(now * speed + phase + 0.8) * amp;
+
+      ctx.beginPath();
+      ctx.moveTo(-2, H * l.y0f);
+      ctx.bezierCurveTo(
+        W * l.cp1xf, H * cp1y,
+        W * l.cp2xf, H * cp2y,
+        W + 2,       H * l.y1f,
+      );
+      ctx.strokeStyle = l.color;
+      ctx.lineWidth   = l.width;
+      ctx.globalAlpha = l.alpha;
+      ctx.lineCap     = 'round';
+      ctx.stroke();
+    }
+    ctx.globalAlpha = 1;
+
+    requestAnimationFrame(draw as FrameRequestCallback);
+  }
+
+  function resize() {
+    const rect = canvas.parentElement!.getBoundingClientRect();
+    canvas.width  = rect.width;
+    canvas.height = rect.height;
+  }
+
+  resize();
+  new ResizeObserver(resize).observe(canvas.parentElement!);
+
+  new IntersectionObserver(entries => {
+    const visible = entries[0].isIntersecting;
+    if (visible && !animating) { animating = true; draw(); }
+    else if (!visible) { animating = false; }
+  }, { threshold: 0 }).observe(canvas);
+
+  draw();
+})();
+</script>

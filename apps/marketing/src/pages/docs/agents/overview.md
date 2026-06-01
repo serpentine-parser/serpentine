@@ -4,7 +4,34 @@ title: Using with AI Agents
 description: How Serpentine's structured CLI output gives AI coding agents precise structural context before they read a single file.
 ---
 
-Serpentine's CLI is designed to be consumed by AI coding agents — Claude, Cursor, Copilot, Codex, and others. The structured JSON output, selector syntax, and `--edges-only` flag exist specifically to give agents precise, low-noise subgraphs without requiring file reads.
+Serpentine's CLI is designed to be consumed by AI coding agents — Claude Code, Cursor, GitHub Copilot, Codex, OpenCode, and others. The structured JSON output, selector syntax, and `--edges-only` flag exist specifically to give agents precise, low-noise subgraphs without requiring file reads.
+
+## Wiring it in
+
+Run once inside any project:
+
+```bash
+serpentine init
+```
+
+Serpentine auto-detects which harnesses are in use and installs the appropriate configuration for each:
+
+| Harness | What gets installed |
+| ------- | ------------------- |
+| `claude` | `.claude/skills/code-analysis/SKILL.md` + appends to `CLAUDE.md` |
+| `cursor` | `.cursor/rules/serpentine.mdc` |
+| `copilot` | appends to `.github/copilot-instructions.md` |
+| `codex` | appends to `AGENTS.md` |
+| `opencode` | appends to `AGENTS.md` |
+
+Target a specific harness with `--harness`:
+
+```bash
+serpentine init --harness cursor
+serpentine init --harness claude --harness copilot
+```
+
+Already-existing files are skipped rather than overwritten.
 
 ## The problem it solves
 

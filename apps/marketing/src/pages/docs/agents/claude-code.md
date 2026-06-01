@@ -14,49 +14,43 @@ In any project you want to instrument:
 serpentine init
 ```
 
-This installs two skill files to `.claude/skills/` and appends a `## Serpentine` section to `CLAUDE.md`.
+If `.claude/` is present, it's detected automatically. You can also target Claude Code explicitly:
+
+```bash
+serpentine init --harness claude
+```
 
 ## What gets installed
 
-### `serpentine-orient` skill
+### `code-analysis` skill
 
-Runs at the start of tasks. Claude calls:
+Installed to `.claude/skills/code-analysis/SKILL.md`. This skill replaces `grep`, `find`, and file reads for code navigation. Claude uses three commands:
 
 1. `serpentine stats .` — get the module list and scale
 2. `serpentine catalog . --filter "*<topic>*"` — find nodes relevant to the task
-3. `serpentine analyze . --select "+<relevant-area>+"` — get the subgraph
+3. `serpentine analyze . --select "+<relevant-area>+" --source` — get the subgraph and source
 
 These three calls replace the typical exploratory loop of opening files and grepping, which saves tokens and produces more accurate plans.
 
-### `serpentine-check` skill
+### `CLAUDE.md` update
 
-Runs before edits to assess blast radius. Claude calls:
-
-```bash
-serpentine analyze . --select "<target>+" --no-cfg --edges-only --pretty
-```
-
-This tells Claude exactly what depends on the thing it's about to change, so it doesn't discover new dependents halfway through an implementation.
-
-## The CLAUDE.md update
-
-`serpentine init` appends navigation instructions to `CLAUDE.md` that tell Claude:
+`serpentine init` appends a `## Serpentine` section to `CLAUDE.md` that tells Claude:
 
 - To use `serpentine` commands instead of `grep`/`find`/`rg` for structural exploration
-- When to invoke `serpentine-orient` vs `serpentine-check`
+- When to use `catalog` vs `analyze`
 - How to interpret edge types (`calls`, `has-a`, `references`, `is-a`)
 
 These instructions persist across sessions, so you don't need to re-explain the workflow each time.
 
 ## Manual skill invocation
 
-Even without automatic invocation, you can call the skills explicitly in any Claude Code session:
+Even without automatic invocation, you can call the skill explicitly in any Claude Code session:
 
 ```
-/serpentine-orient
-/serpentine-check src.auth.models.User
+/code-analysis AuthService
+/code-analysis what calls parse_request
 ```
 
 ## Updating
 
-After upgrading Serpentine, re-run `serpentine init` to refresh the skills. Existing files are skipped by default; delete `.claude/skills/serpentine-orient` and `.claude/skills/serpentine-check` first if you want to force an update.
+After upgrading Serpentine, re-run `serpentine init` to refresh the skill. Existing files are skipped by default; delete `.claude/skills/code-analysis/` first if you want to force an update.
