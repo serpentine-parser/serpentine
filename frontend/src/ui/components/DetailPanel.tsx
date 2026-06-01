@@ -238,15 +238,15 @@ export function DetailPanel({ node, cfgNode, onClose, allEdges, visibleEdges, fi
     return foundNode ? foundNode.id : nodeId;
   };
 
-  const getEdgeTypeBadge = (edgeType: "calls" | "is-a" | "has-a" | "references" | "imports") => {
-    const styles = {
+  const getEdgeTypeBadge = (edgeType: string) => {
+    const styles: Record<string, string> = {
       calls: "bg-blue-100 text-blue-800 border-blue-200",
       "is-a": "bg-green-100 text-green-800 border-green-200",
       "has-a": "bg-orange-100 text-orange-800 border-orange-200",
       references: "bg-amber-100 text-amber-800 border-amber-200",
       imports: "bg-violet-100 text-violet-800 border-violet-200",
     };
-    const labels = {
+    const labels: Record<string, string> = {
       calls: "Calls",
       "is-a": "Inherits",
       "has-a": "Contains",
@@ -255,9 +255,9 @@ export function DetailPanel({ node, cfgNode, onClose, allEdges, visibleEdges, fi
     };
     return (
       <span
-        className={`inline-flex px-2 py-0.5 text-xs font-medium rounded border ${styles[edgeType]}`}
+        className={`inline-flex px-2 py-0.5 text-xs font-medium rounded border ${styles[edgeType] ?? "bg-gray-100 text-gray-700 border-gray-200"}`}
       >
-        {labels[edgeType]}
+        {labels[edgeType] ?? edgeType}
       </span>
     );
   };

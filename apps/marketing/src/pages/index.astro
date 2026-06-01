@@ -1,0 +1,485 @@
+---
+import Base from '../layouts/Base.astro';
+
+const GITHUB = 'https://github.com/serpentine-parser/serpentine';
+---
+
+<Base title="Serpentine — Richer context. Less noise. Fewer surprises.">
+
+  <!-- ─── HERO ─── -->
+  <section class="hero-section relative flex flex-col items-center justify-center text-center px-4 pt-20 pb-10 md:min-h-screen md:pt-28 md:pb-20 overflow-hidden">
+    <div class="hero-bg pointer-events-none"></div>
+    <canvas id="hero-canvas" aria-hidden="true" class="hidden md:block absolute inset-0 w-full h-full pointer-events-none z-0"></canvas>
+    <div class="hidden md:block hero-canvas-fade"></div>
+    <div class="hero-grid pointer-events-none"></div>
+
+    <div class="relative z-10 flex flex-col items-center w-full max-w-hero
+                bg-bg/[0.82] border border-accent/10 rounded-2xl
+                px-6 py-8 sm:px-10
+                shadow-[0_0_0_1px_rgba(255,255,255,0.04)_inset,0_4px_32px_rgba(0,0,0,0.3)]">
+
+      <!-- Badge -->
+      <div class="animate-fade-up flex items-center gap-1.5 bg-surface border border-border-2 rounded-full px-3 py-1 text-[0.75rem] text-text-dim font-mono mb-5 md:mb-8">
+        <span class="w-1.5 h-1.5 rounded-full bg-accent animate-blink"></span>
+        v0.2.1 · Apache 2.0
+      </div>
+
+      <h1 class="animate-fade-up-1 text-[clamp(1.75rem,5vw,3.25rem)] font-light leading-[1.1] tracking-[-0.03em] max-w-2xl mb-4 md:mb-6">
+        <em class="not-italic text-accent">Richer context.</em><br />
+        Less noise.<br />
+        Fewer surprises.
+      </h1>
+
+      <p class="animate-fade-up-2 text-[0.95rem] md:text-[1.05rem] text-text-muted max-w-xl leading-[1.7] font-light mb-5 md:mb-10">
+        Give your agent a structural picture of your codebase —
+        every reference between every definition —
+        before it reads a single file.
+      </p>
+
+      <!-- Install command -->
+      <button
+        class="animate-fade-up-3 flex items-center gap-3 bg-surface border border-border-2 rounded-lg px-5 py-2.5 md:py-3 font-mono text-[0.85rem] md:text-[0.9rem] text-text mb-3 cursor-pointer transition-colors hover:border-accent/40 w-full max-w-lg"
+        onclick="navigator.clipboard?.writeText('pip install serpentine-parser')">
+        <span class="text-accent select-none">$</span>
+        <span>pip install serpentine-parser</span>
+        <span class="ml-auto text-text-dim text-[0.7rem] font-sans">click to copy</span>
+      </button>
+
+      <p class="text-xs text-text-dim mb-3">then in your project</p>
+
+      <!-- Harness switcher -->
+      <div class="animate-fade-up-35 flex flex-col w-full max-w-lg mb-5 md:mb-7">
+        <!-- Tab bar (hidden on small screens) -->
+        <div class="agent-tabs hidden sm:flex border border-border-2 border-b-0 rounded-t-lg overflow-hidden">
+          <button class="agent-tab active" data-harness="claude">
+            <svg class="tab-icon" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M8 2 2.5 14h3l1-2.5h3l1 2.5h3L8 2Zm0 3.5 1.1 3.5H6.9L8 5.5Z" fill="#d97706"/></svg>
+            Claude Code
+          </button>
+          <button class="agent-tab" data-harness="cursor">
+            <svg class="tab-icon" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M3 2 13 8 8 9.5 6 15Z" fill="#818cf8"/></svg>
+            Cursor
+          </button>
+          <button class="agent-tab" data-harness="copilot">
+            <svg class="tab-icon" viewBox="0 0 16 16" fill="#94a3b8" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0 0 16 8c0-4.42-3.58-8-8-8Z"/></svg>
+            Copilot
+          </button>
+          <button class="agent-tab" data-harness="codex">
+            <svg class="tab-icon" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M13.5 6.37A3.88 3.88 0 0 0 10.07 2a3.9 3.9 0 0 0-3.72 2.75A3.38 3.38 0 0 0 2.5 7.9a3.38 3.38 0 0 0 1.63 4.7A3.88 3.88 0 0 0 7.93 16a3.9 3.9 0 0 0 3.72-2.75A3.38 3.38 0 0 0 13.5 6.37ZM10.07 15a2.88 2.88 0 0 1-2.76-2.1l-.05-.18.17-.1 1.43-.82.15-.09.15.09 1.43.82-.05.18A2.88 2.88 0 0 1 10.07 15ZM3.5 11.25a2.38 2.38 0 0 1 0-2.5l.1-.17.17.1 1.43.82.15.09v1.64l-.15.09-1.43.82-.17.1ZM5.35 5.6l-.05-.18A2.88 2.88 0 0 1 7.93 3a2.9 2.9 0 0 1 2.76 2.1l.05.18-.17.1-1.43.82-.15.09H7.5l-.15-.09-1.43-.82Zm8.15 3.15-.1.17-.17-.1-1.43-.82-.15-.09V6.27l.15-.09 1.43-.82.17-.1.1.17a2.38 2.38 0 0 1 0 3.32Z" fill="#10a37f"/></svg>
+            Codex
+          </button>
+          <button class="agent-tab" data-harness="opencode">
+            <svg class="tab-icon" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M2.5 5.5 6.5 8l-4 2.5" stroke="#64748b" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M8.5 10.5H13" stroke="#64748b" stroke-width="1.5" stroke-linecap="round"/></svg>
+            OpenCode
+          </button>
+        </div>
+
+        <!-- Select (small screens) -->
+        <select class="agent-select sm:hidden w-full bg-surface-2 border border-border-2 rounded-t-lg border-b-0 text-text font-mono text-[0.82rem] px-3 py-2.5 cursor-pointer appearance-none"
+                aria-label="Select harness" style="background-image:url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath d='M2 4l4 4 4-4' stroke='%234a574c' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round' fill='none'/%3E%3C/svg%3E\");background-repeat:no-repeat;background-position:right 0.75rem center;padding-right:2rem">
+          <option value="claude">Claude Code</option>
+          <option value="cursor">Cursor</option>
+          <option value="copilot">GitHub Copilot</option>
+          <option value="codex">Codex</option>
+          <option value="opencode">OpenCode</option>
+        </select>
+
+        <!-- Command panel -->
+        <div class="bg-surface border border-border-2 rounded-b-lg overflow-hidden">
+          <div class="px-3.5 py-3 font-mono text-[0.82rem] text-text">
+            <div class="flex gap-2 items-start" id="harness-cmd">
+              <span class="text-accent select-none">$</span>
+              <span>serpentine init</span>
+            </div>
+          </div>
+          <div id="harness-note" class="px-3.5 pb-3 pt-0 text-[0.75rem] text-text-dim font-sans font-light leading-relaxed border-t border-border">
+            Installs <code class="font-mono text-[0.75em] text-text-muted bg-bg border border-border rounded px-1">.claude/skills/code-analysis/</code> and
+            appends to <code class="font-mono text-[0.75em] text-text-muted bg-bg border border-border rounded px-1">CLAUDE.md</code>.
+            Detected automatically if <code class="font-mono text-[0.75em] text-text-muted bg-bg border border-border rounded px-1">.claude/</code> is present.
+          </div>
+        </div>
+      </div>
+
+      <!-- CTAs -->
+      <div class="animate-fade-up-4 flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
+        <a href="/docs/getting-started/installation" class="btn-primary inline-flex items-center justify-center gap-1.5 px-5 py-2.5 rounded-lg text-sm font-medium no-underline transition-colors bg-accent text-[#0a1a0e] hover:bg-[#6ee7b7]">Get started →</a>
+        <a href={GITHUB} class="btn-secondary inline-flex items-center justify-center gap-1.5 px-5 py-2.5 rounded-lg text-sm font-medium no-underline transition-colors text-text-muted border border-border-2 hover:text-text hover:bg-surface-2" target="_blank" rel="noopener">View on GitHub</a>
+      </div>
+    </div>
+  </section>
+
+  <!-- ─── PROBLEM ─── -->
+  <section class="border-t border-border px-6 py-20 md:py-24 max-w-prose mx-auto text-center">
+    <p class="text-[1.15rem] text-text-muted font-light leading-[1.8] mb-4">
+      Without structure, your agent reads until it
+      <span class="text-text italic">thinks</span> it knows enough. It
+      usually doesn't. Plans miss dependencies. Changes find new
+      callsites halfway through. The session fills up, quality drops,
+      and you're left fixing code that was already working.
+    </p>
+    <p class="text-[1.15rem] text-text font-normal">Avoid context rot and get better results.</p>
+  </section>
+
+  <!-- ─── HOW IT WORKS ─── -->
+  <section class="border-t border-border px-6 py-20 md:py-24 max-w-content mx-auto">
+    <p class="font-mono text-[0.7rem] text-accent tracking-[0.12em] uppercase mb-3">How it works</p>
+    <h2 class="text-[clamp(1.75rem,3vw,2.5rem)] font-light tracking-[-0.02em] mb-3 leading-[1.2]">Orient first. Then build.</h2>
+    <p class="text-text-muted text-base font-light mb-10 max-w-lg">Three calls. That's the whole workflow.</p>
+
+    <div class="flex flex-col border border-border rounded-xl overflow-hidden divide-y divide-border">
+      {[
+        {
+          n: '01',
+          title: 'Get the lay of the land',
+          cmd: 'serpentine stats .',
+          desc: 'Module names, node counts, rough scale. Your agent knows what it\'s dealing with before it opens a file.',
+        },
+        {
+          n: '02',
+          title: 'Find what\'s relevant',
+          cmd: 'serpentine catalog . --filter "*auth*"',
+          desc: 'Every function, class, and variable whose name or location matches — flat, indexed, ready to query.',
+        },
+        {
+          n: '03',
+          title: 'Get the exact subgraph',
+          cmd: 'serpentine analyze . --select "+src.auth.*+"',
+          desc: 'Everything that touches the area you care about: upstream, downstream, or both. No file reads required.',
+        },
+      ].map(({ n, title, cmd, desc }) => (
+        <div class="grid grid-cols-[40px_1fr] bg-surface hover:bg-surface-2 transition-colors">
+          <div class="flex items-start justify-center pt-5 font-mono text-[0.7rem] text-text-dim border-r border-border">{n}</div>
+          <div class="px-5 py-5">
+            <h3 class="font-mono text-[0.8rem] font-medium text-text-muted uppercase tracking-[0.02em] mb-2">{title}</h3>
+            <div class="flex items-center gap-2 bg-bg border border-border rounded-md px-3.5 py-2 font-mono text-[0.82rem] text-text mb-2 overflow-x-auto">
+              <span class="text-accent select-none flex-shrink-0">$</span>
+              <span class="whitespace-nowrap">{cmd}</span>
+            </div>
+            <p class="text-[0.875rem] text-text-muted font-light leading-relaxed">{desc}</p>
+          </div>
+        </div>
+      ))}
+      <div class="px-5 py-5 bg-surface-2 text-[0.875rem] text-text-muted italic font-light">
+        Your agent reads the edges, then opens only the files that matter.
+      </div>
+    </div>
+  </section>
+
+  <!-- ─── TRIO ─── -->
+  <section class="border-t border-border px-6 py-20 md:py-24 max-w-content mx-auto">
+    <p class="font-mono text-[0.7rem] text-accent tracking-[0.12em] uppercase mb-3">Why it matters</p>
+    <h2 class="text-[clamp(1.75rem,3vw,2.5rem)] font-light tracking-[-0.02em] leading-[1.2]">
+      What changes when your<br />agent knows the structure.
+    </h2>
+
+    <div class="mt-10 grid grid-cols-1 md:grid-cols-3 border border-border rounded-xl overflow-hidden divide-y md:divide-y-0 md:divide-x divide-border">
+      {[
+        { icon: '◈', title: 'Richer context',   body: 'Structural orientation before the agent reads a single file. It knows what calls what, what inherits what, what breaks if you change something.' },
+        { icon: '◉', title: 'Less noise',        body: 'Precise subgraphs instead of exploratory file dumps. The agent sees signal, not your entire codebase crammed into a window.' },
+        { icon: '◎', title: 'Fewer surprises',   body: 'Know the blast radius before anything changes. No new dependents mid-implementation. No rework on code that was already working.' },
+      ].map(({ icon, title, body }) => (
+        <div class="relative bg-surface hover:bg-surface-2 transition-colors px-7 py-8 overflow-hidden group">
+          <div class="absolute top-0 inset-x-0 h-0.5 bg-gradient-to-r from-accent to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
+          <span class="text-xl mb-3 block">{icon}</span>
+          <h3 class="text-base font-medium mb-3 text-text">{title}</h3>
+          <p class="text-[0.875rem] text-text-muted font-light leading-[1.7]">{body}</p>
+        </div>
+      ))}
+    </div>
+  </section>
+
+  <!-- ─── VISUALIZATION ─── -->
+  <section class="border-t border-border px-6 py-20 md:py-24 max-w-content mx-auto">
+    <p class="font-mono text-[0.7rem] text-accent tracking-[0.12em] uppercase mb-3">The visualization</p>
+    <h2 class="text-[clamp(1.75rem,3vw,2.5rem)] font-light tracking-[-0.02em] leading-[1.2]">
+      And while it's building,<br />you're not blind.
+    </h2>
+
+    <div class="mt-0 max-w-[560px]">
+      <p class="text-text-muted font-light leading-[1.75] mb-4 mt-6">
+        Most agents work in the dark. You ask for a feature, something comes back,
+        you review a diff and hope for the best.
+      </p>
+      <p class="text-text-muted font-light leading-[1.75] mb-8">
+        Serpentine's visualization updates in real time as your agent works. New functions
+        appear as they're written. References form — or don't. The shape of the codebase
+        changes in front of you.
+      </p>
+    </div>
+
+    <div class="border border-border-2 rounded-xl overflow-hidden bg-surface mb-8">
+      <div class="bg-surface-2 border-b border-border px-4 py-2.5 flex items-center gap-1.5">
+        <div class="w-2.5 h-2.5 rounded-full bg-[#ff5f57]"></div>
+        <div class="w-2.5 h-2.5 rounded-full bg-[#febc2e]"></div>
+        <div class="w-2.5 h-2.5 rounded-full bg-[#28c840]"></div>
+        <span class="ml-2 font-mono text-[0.7rem] text-text-dim">serpentine · localhost:8765</span>
+      </div>
+      <img src="/screenshot.png" alt="Serpentine visualization — interactive code reference graph" class="w-full block opacity-90" />
+    </div>
+
+    <p class="text-[0.8rem] text-text-dim italic font-light border-l-2 border-border-2 pl-4 leading-relaxed">
+      You don't have to read every file to know if you like what's being built. This part
+      is for the developers who still want to know what's happening in their codebase.
+      In 2026, that's not everyone. But if it's you, it's here.
+    </p>
+  </section>
+
+  <!-- ─── INIT ─── -->
+  <section class="border-t border-border px-6 py-20 md:py-24 max-w-content mx-auto">
+    <p class="font-mono text-[0.7rem] text-accent tracking-[0.12em] uppercase mb-3">Setup</p>
+    <h2 class="text-[clamp(1.75rem,3vw,2.5rem)] font-light tracking-[-0.02em] leading-[1.2]">One command to wire it in.</h2>
+    <p class="text-text-muted font-light text-base mt-2 mb-10">Installs skills, updates config files, and gets out of the way.</p>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 border border-border rounded-xl overflow-hidden divide-y md:divide-y-0 md:divide-x divide-border">
+      <div class="bg-surface p-8">
+        <pre class="font-mono text-[0.82rem] leading-[1.8] text-text-muted m-0 overflow-x-auto"><span class="text-text-dim">$</span> <span class="text-accent">serpentine init</span>
+
+<span class="text-text-dim">serpentine init complete (claude):</span>
+<span class="text-text-dim">  ✓</span> <span class="text-text">.serpentine.yml created</span>
+<span class="text-text-dim">  ✓</span> <span class="text-text">.gitignore updated</span>
+<span class="text-text-dim">  ✓</span> <span class="text-calls">.claude/skills/code-analysis/SKILL.md installed</span>
+<span class="text-text-dim">  ✓</span> <span class="text-text">CLAUDE.md updated</span></pre>
+      </div>
+      <div class="bg-surface-2 p-8 flex flex-col justify-center">
+        <p class="text-[0.9rem] text-text-muted font-light leading-[1.75] mb-4">
+          From that point on, your agent runs
+          <code class="font-mono text-[0.8em] text-accent bg-bg border border-border rounded px-1.5 py-0.5">stats</code>,
+          <code class="font-mono text-[0.8em] text-accent bg-bg border border-border rounded px-1.5 py-0.5">catalog</code>, and
+          <code class="font-mono text-[0.8em] text-accent bg-bg border border-border rounded px-1.5 py-0.5">analyze</code>
+          before it reads files or writes a plan — not because you told it to this session, but because it's wired in.
+        </p>
+        <p class="text-[0.9rem] text-text-muted font-light leading-[1.75] mb-5">
+          Auto-detects which harnesses are in use. Pass
+          <code class="font-mono text-[0.8em] text-text-muted bg-bg border border-border rounded px-1.5 py-0.5">--harness</code> to target one explicitly.
+        </p>
+        <div class="flex flex-wrap gap-1.5">
+          {['Claude Code', 'Cursor', 'Copilot', 'Codex', 'OpenCode'].map(tag => (
+            <span class="bg-bg border border-border-2 rounded px-2 py-1 font-mono text-[0.7rem] text-text-muted">{tag}</span>
+          ))}
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ─── CTA ─── -->
+  <section class="relative border-t border-border px-6 py-24 text-center overflow-hidden">
+    <div class="absolute inset-0 pointer-events-none" style="background:radial-gradient(ellipse 50% 60% at 50% 100%,rgba(74,222,128,0.06),transparent 70%)"></div>
+    <h2 class="relative text-[clamp(1.75rem,3vw,2.5rem)] font-light tracking-[-0.02em] mb-3">Stop flying blind.<br />Orient first.</h2>
+    <p class="relative text-text-muted font-light mb-8">Free, open source, and works with the agents you already use.</p>
+
+    <div class="relative flex flex-wrap items-center justify-center gap-3 mb-8">
+      {[
+        { dot: true, label: 'Python · JS/TS · Rust' },
+        { dot: false, label: 'Apache 2.0' },
+        { dot: false, label: 'Built in Rust' },
+        { dot: false, label: 'v0.2.1' },
+      ].map(({ dot, label }) => (
+        <span class="inline-flex items-center gap-1.5 bg-surface border border-border-2 rounded px-2.5 py-1 font-mono text-[0.72rem] text-text-muted">
+          {dot && <span class="w-1.5 h-1.5 rounded-full bg-accent"></span>}
+          {label}
+        </span>
+      ))}
+    </div>
+
+    <div class="relative flex flex-col sm:flex-row gap-3 justify-center">
+      <a href="/docs/getting-started/installation" class="inline-flex items-center justify-center px-5 py-2.5 rounded-lg text-sm font-medium no-underline bg-accent text-[#0a1a0e] transition-colors hover:bg-[#6ee7b7]">Get started →</a>
+      <a href={GITHUB} class="inline-flex items-center justify-center px-5 py-2.5 rounded-lg text-sm font-medium no-underline text-text-muted border border-border-2 transition-colors hover:text-text hover:bg-surface-2" target="_blank" rel="noopener">View on GitHub</a>
+    </div>
+  </section>
+
+</Base>
+
+<style is:global>
+/* ─── Hero decorative backgrounds (self-contained — no Tailwind dependency) ─── */
+.hero-section { background: var(--bg); }
+
+.hero-bg {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(ellipse 130% 70% at 40% -10%, rgba(32,251,152,0.08) 0%, rgba(6,182,212,0.04) 50%, transparent 72%),
+    radial-gradient(ellipse 55% 45% at 92% 8%, rgba(196,255,94,0.05) 0%, rgba(32,251,152,0.02) 55%, transparent 75%);
+  mask-image: linear-gradient(to bottom, black 45%, transparent 82%);
+  -webkit-mask-image: linear-gradient(to bottom, black 45%, transparent 82%);
+}
+
+.hero-bg::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 512 512' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.72' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  background-size: 256px 256px;
+  opacity: 0.045;
+  mix-blend-mode: overlay;
+}
+
+.hero-grid {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image: linear-gradient(rgba(255,255,255,0.055) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.055) 1px, transparent 1px);
+  background-size: 48px 48px;
+  mask-image: radial-gradient(ellipse 80% 60% at 50% 40%, black 20%, transparent 80%);
+  -webkit-mask-image: radial-gradient(ellipse 80% 60% at 50% 40%, black 20%, transparent 80%);
+}
+
+/* ─── Agent tabs (display handled entirely by Tailwind hidden/sm:flex) ─── */
+
+.agent-tab {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.3rem;
+  background: var(--surface2);
+  border: none;
+  border-right: 1px solid var(--border);
+  padding: 0.45rem 0.25rem;
+  font-family: 'Fira Code', monospace;
+  font-size: 0.65rem;
+  color: var(--text-dim);
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+  white-space: nowrap;
+}
+.agent-tab:last-child { border-right: none; }
+.agent-tab:hover { background: var(--surface); color: var(--text-muted); }
+.agent-tab.active {
+  background: var(--surface);
+  color: var(--accent);
+  border-bottom: 1px solid var(--surface);
+  margin-bottom: -1px;
+  position: relative;
+  z-index: 1;
+}
+
+.tab-icon { width: 11px; height: 11px; flex-shrink: 0; }
+
+/* ─── Canvas fade overlay (static div instead of per-frame mask) ─── */
+.hero-canvas-fade {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(to bottom, transparent 50%, var(--bg) 88%);
+  z-index: 1;
+}
+</style>
+
+<script>
+(function () {
+  type HarnessKey = 'claude' | 'cursor' | 'copilot' | 'codex' | 'opencode';
+  const HARNESS: Record<HarnessKey, { cmd: string; note: string }> = {
+    claude: {
+      cmd: 'serpentine init',
+      note: 'Installs <code class="font-mono text-[0.75em] text-text-muted bg-bg border border-border rounded px-1">.claude/skills/code-analysis/</code> and appends to <code class="font-mono text-[0.75em] text-text-muted bg-bg border border-border rounded px-1">CLAUDE.md</code>. Detected automatically if <code class="font-mono text-[0.75em] text-text-muted bg-bg border border-border rounded px-1">.claude/</code> is present.',
+    },
+    cursor: {
+      cmd: 'serpentine init --harness cursor',
+      note: 'Installs <code class="font-mono text-[0.75em] text-text-muted bg-bg border border-border rounded px-1">.cursor/rules/serpentine.mdc</code>. Detected automatically if <code class="font-mono text-[0.75em] text-text-muted bg-bg border border-border rounded px-1">.cursor/</code> is present.',
+    },
+    copilot: {
+      cmd: 'serpentine init --harness copilot',
+      note: 'Appends a Serpentine section to <code class="font-mono text-[0.75em] text-text-muted bg-bg border border-border rounded px-1">.github/copilot-instructions.md</code>.',
+    },
+    codex: {
+      cmd: 'serpentine init --harness codex',
+      note: 'Appends a Serpentine section to <code class="font-mono text-[0.75em] text-text-muted bg-bg border border-border rounded px-1">AGENTS.md</code>.',
+    },
+    opencode: {
+      cmd: 'serpentine init --harness opencode',
+      note: 'Appends a Serpentine section to <code class="font-mono text-[0.75em] text-text-muted bg-bg border border-border rounded px-1">AGENTS.md</code>. Detected automatically if <code class="font-mono text-[0.75em] text-text-muted bg-bg border border-border rounded px-1">.opencode/</code> is present.',
+    },
+  };
+
+  const tabs   = document.querySelectorAll<HTMLElement>('.agent-tab');
+  const select = document.querySelector<HTMLSelectElement>('.agent-select');
+  const cmdEl  = document.getElementById('harness-cmd');
+  const noteEl = document.getElementById('harness-note');
+
+  function setHarness(key: HarnessKey) {
+    const h = HARNESS[key];
+    if (cmdEl)  cmdEl.innerHTML  = `<span class="text-accent select-none">$</span><span>${h.cmd}</span>`;
+    if (noteEl) noteEl.innerHTML = h.note;
+  }
+
+  tabs.forEach(tab => {
+    tab.addEventListener('click', () => {
+      tabs.forEach(t => t.classList.remove('active'));
+      tab.classList.add('active');
+      const key = tab.dataset.harness as HarnessKey;
+      if (select) select.value = key;
+      setHarness(key);
+    });
+  });
+
+  if (select) {
+    select.addEventListener('change', () => {
+      const key = select.value as HarnessKey;
+      tabs.forEach(t => t.classList.toggle('active', t.dataset.harness === key));
+      setHarness(key);
+    });
+  }
+})();
+
+(function () {
+  const canvas = document.getElementById('hero-canvas') as HTMLCanvasElement;
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return;
+
+  type Line = {
+    y0f: number; cp1xf: number; cp1yf: number;
+    cp2xf: number; cp2yf: number; y1f: number;
+    alpha: number; width: number; color: string;
+  };
+
+  const LINES: Line[] = [
+    { y0f:0.08, cp1xf:0.42, cp1yf:0.08, cp2xf:0.58, cp2yf:0.62, y1f:0.62, alpha:0.28, width:2.5, color:'#34d399' },
+    { y0f:0.14, cp1xf:0.45, cp1yf:0.14, cp2xf:0.55, cp2yf:0.46, y1f:0.46, alpha:0.14, width:0.5, color:'#c4ff5e' },
+    { y0f:0.20, cp1xf:0.40, cp1yf:0.20, cp2xf:0.60, cp2yf:0.10, y1f:0.10, alpha:0.22, width:1.8, color:'#20fb98' },
+    { y0f:0.26, cp1xf:0.46, cp1yf:0.26, cp2xf:0.54, cp2yf:0.05, y1f:0.05, alpha:0.13, width:0.4, color:'#818cf8' },
+    { y0f:0.30, cp1xf:0.42, cp1yf:0.30, cp2xf:0.58, cp2yf:0.55, y1f:0.55, alpha:0.25, width:3.0, color:'#34d399' },
+    { y0f:0.34, cp1xf:0.44, cp1yf:0.34, cp2xf:0.56, cp2yf:0.22, y1f:0.22, alpha:0.16, width:0.9, color:'#22d3ee' },
+    { y0f:0.38, cp1xf:0.41, cp1yf:0.38, cp2xf:0.59, cp2yf:0.68, y1f:0.68, alpha:0.10, width:1.3, color:'#a3e635' },
+  ];
+
+  let animating = true;
+
+  function draw(now = 0) {
+    if (!animating) return;
+    const W = canvas.width, H = canvas.height;
+    ctx.clearRect(0, 0, W, H);
+    for (let i = 0; i < LINES.length; i++) {
+      const l = LINES[i];
+      const phase = i * 1.1, speed = 0.00035 + i * 0.00004, amp = 0.05;
+      const cp1y = l.cp1yf + Math.sin(now * speed + phase) * amp;
+      const cp2y = l.cp2yf + Math.sin(now * speed + phase + 0.8) * amp;
+      ctx.beginPath();
+      ctx.moveTo(-2, H * l.y0f);
+      ctx.bezierCurveTo(W * l.cp1xf, H * cp1y, W * l.cp2xf, H * cp2y, W + 2, H * l.y1f);
+      ctx.strokeStyle = l.color;
+      ctx.lineWidth   = l.width;
+      ctx.globalAlpha = l.alpha;
+      ctx.lineCap     = 'round';
+      ctx.stroke();
+    }
+    ctx.globalAlpha = 1;
+    requestAnimationFrame(draw as FrameRequestCallback);
+  }
+
+  function resize() {
+    const rect = canvas.parentElement!.getBoundingClientRect();
+    canvas.width  = rect.width;
+    canvas.height = rect.height;
+  }
+
+  resize();
+  new ResizeObserver(resize).observe(canvas.parentElement!);
+  new IntersectionObserver(entries => {
+    const visible = entries[0].isIntersecting;
+    if (visible && !animating) { animating = true; draw(); }
+    else if (!visible) { animating = false; }
+  }, { threshold: 0 }).observe(canvas);
+  draw();
+})();
+</script>

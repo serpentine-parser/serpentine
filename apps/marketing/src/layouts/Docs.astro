@@ -1,0 +1,158 @@
+---
+import Base from './Base.astro';
+
+export interface Props {
+  frontmatter: {
+    title: string;
+    description?: string;
+  };
+}
+
+const { frontmatter } = Astro.props;
+
+const currentPath = Astro.url.pathname.replace(/\/$/, '');
+
+const sidebar = [
+  {
+    section: 'Getting Started',
+    items: [
+      { label: 'Installation',  href: '/docs/getting-started/installation' },
+      { label: 'Quick Start',   href: '/docs/getting-started/quickstart' },
+    ],
+  },
+  {
+    section: 'Agents',
+    items: [
+      { label: 'Overview',       href: '/docs/agents/overview' },
+      { label: 'Claude Code',    href: '/docs/agents/claude-code' },
+      { label: 'Cursor',         href: '/docs/agents/cursor' },
+      { label: 'GitHub Copilot', href: '/docs/agents/copilot' },
+      { label: 'Codex',          href: '/docs/agents/codex' },
+      { label: 'OpenCode',       href: '/docs/agents/opencode' },
+    ],
+  },
+  {
+    section: 'Using the UI',
+    items: [
+      { label: 'Overview',   href: '/docs/ui/overview' },
+      { label: 'Reference',  href: '/docs/ui/reference' },
+    ],
+  },
+  {
+    section: 'Querying',
+    items: [
+      { label: 'Selectors',          href: '/docs/querying/selectors' },
+      { label: 'How Parsing Works',  href: '/docs/querying/how-parsing-works' },
+    ],
+  },
+  {
+    section: 'Configuration',
+    items: [
+      { label: 'Configuration', href: '/docs/configuration' },
+    ],
+  },
+  {
+    section: 'CLI Reference',
+    items: [
+      { label: 'serve',    href: '/docs/cli-reference/serve' },
+      { label: 'analyze',  href: '/docs/cli-reference/analyze' },
+      { label: 'catalog',  href: '/docs/cli-reference/catalog' },
+      { label: 'stats',    href: '/docs/cli-reference/stats' },
+      { label: 'init',     href: '/docs/cli-reference/init' },
+    ],
+  },
+];
+
+const currentLabel = sidebar.flatMap(s => s.items).find(i => i.href === currentPath)?.label ?? 'Navigation';
+---
+
+<Base title={`${frontmatter.title} — Serpentine Docs`}>
+  <div class="mt-14 lg:grid lg:grid-cols-[240px_1fr] min-h-screen">
+
+    <!-- Sidebar (desktop) -->
+    <aside class="hidden lg:block border-r border-border px-5 py-8 sticky top-14 h-[calc(100vh-3.5rem)] overflow-y-auto">
+      {sidebar.map(({ section, items }) => (
+        <div class="mb-7">
+          <h3 class="font-mono text-[0.65rem] font-medium tracking-widest uppercase text-text-dim mb-2 px-2">{section}</h3>
+          <ul class="list-none">
+            {items.map(({ label, href }) => (
+              <li>
+                <a href={href}
+                   class={`block px-2 py-1.5 text-sm rounded-md no-underline transition-colors ${
+                     currentPath === href
+                       ? 'text-accent bg-accent/5'
+                       : 'text-text-muted hover:text-text hover:bg-surface-2'
+                   }`}>
+                  {label}
+                </a>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ))}
+    </aside>
+
+    <!-- Main content -->
+    <main class="min-w-0 px-6 py-10 lg:px-14 lg:py-12 max-w-3xl">
+
+      <!-- Mobile nav (visible below lg) -->
+      <div id="docs-mobile-nav" class="lg:hidden border border-border-2 rounded-lg overflow-hidden mb-8">
+        <button id="docs-mobile-toggle" aria-expanded="false"
+                class="flex items-center justify-between w-full bg-surface-2 px-4 py-3 text-sm text-text border-none cursor-pointer transition-colors hover:bg-surface">
+          <span>{currentLabel}</span>
+          <svg id="docs-chevron" width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true" class="text-text-dim transition-transform duration-200">
+            <path d="M2.5 5l4.5 4 4.5-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </button>
+        <div id="docs-mobile-links" class="hidden border-t border-border bg-surface px-4 py-3">
+          {sidebar.map(({ section, items }) => (
+            <div class="mb-4 last:mb-0">
+              <p class="font-mono text-[0.62rem] tracking-widest uppercase text-text-dim mb-1.5 px-1">{section}</p>
+              <ul class="list-none">
+                {items.map(({ label, href }) => (
+                  <li>
+                    <a href={href}
+                       class={`block px-2 py-1.5 text-sm rounded no-underline transition-colors ${
+                         currentPath === href
+                           ? 'text-accent bg-accent/5'
+                           : 'text-text-muted hover:text-text hover:bg-surface-2'
+                       }`}>
+                      {label}
+                    </a>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div class="docs-content">
+        <h1>{frontmatter.title}</h1>
+        {frontmatter.description && (
+          <p class="doc-description">{frontmatter.description}</p>
+        )}
+        <slot />
+      </div>
+    </main>
+
+  </div>
+</Base>
+
+<script>
+  const toggle = document.getElementById('docs-mobile-toggle')!;
+  const links  = document.getElementById('docs-mobile-links')!;
+  const chevron = document.getElementById('docs-chevron')!;
+
+  toggle.addEventListener('click', () => {
+    const open = links.classList.toggle('hidden');
+    toggle.setAttribute('aria-expanded', String(!open));
+    chevron.style.transform = open ? '' : 'rotate(180deg)';
+  });
+
+  links.querySelectorAll('a').forEach(a => a.addEventListener('click', () => {
+    links.classList.add('hidden');
+    toggle.setAttribute('aria-expanded', 'false');
+    chevron.style.transform = '';
+  }));
+</script>

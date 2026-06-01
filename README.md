@@ -158,13 +158,27 @@ Options:
 Set up Serpentine in an existing project.
 
 ```
-serpentine init [PATH]
+serpentine init [PATH] [OPTIONS]
 
 Arguments:
   PATH    Project directory (default: current directory)
+
+Options:
+  --harness TEXT    Target a specific harness: claude, cursor, copilot,
+                    codex, opencode (repeatable; auto-detects if omitted)
 ```
 
-Creates `.serpentine.yml` with default configuration, adds `.serpentine` to `.gitignore`, installs Claude Code skills (`serpentine-check` and `serpentine-orient`) to `.claude/skills/`, and appends a `## Serpentine` section to `CLAUDE.md` with navigation instructions. Already-existing files are skipped rather than overwritten.
+Creates `.serpentine.yml` with default configuration and adds `.serpentine` to `.gitignore`. Then installs harness-specific configuration for whichever AI coding tools are detected in the project:
+
+| Harness | What gets installed |
+| ------- | ------------------- |
+| `claude` | `.claude/skills/code-analysis/SKILL.md` + appends to `CLAUDE.md` |
+| `cursor` | `.cursor/rules/serpentine.mdc` |
+| `copilot` | appends to `.github/copilot-instructions.md` |
+| `codex` | appends to `AGENTS.md` |
+| `opencode` | appends to `AGENTS.md` |
+
+Already-existing files are skipped rather than overwritten. Use `--harness` to target a specific harness instead of auto-detecting.
 
 ---
 
@@ -362,9 +376,9 @@ Use `--select "*.TargetFunction+"` to get all downstream dependents. An empty re
 **Tracing a call chain**
 Use `--select "+*.entrypoint+3"` to get 3 hops downstream from an entry point and understand the execution path before adding instrumentation or fixing a bug.
 
-### Claude Code skill
+### Harness integration
 
-Run `serpentine init` in any project to install the Claude Code skill and configure Serpentine. This installs the `code-analysis` skill to `.claude/skills/`, which instructs Claude to use Serpentine's CLI instead of reading files or grepping — running `stats`, `catalog`, and `analyze` to get source code and structural context in a single token-efficient pass.
+Run `serpentine init` in any project to wire Serpentine into your AI coding tools. For Claude Code, this installs the `code-analysis` skill to `.claude/skills/code-analysis/` and appends navigation instructions to `CLAUDE.md` — Claude then uses `stats`, `catalog`, and `analyze` instead of reading files or grepping. For Cursor, Copilot, Codex, and OpenCode, it installs the equivalent rules or instructions file for each tool.
 
 ---
 
