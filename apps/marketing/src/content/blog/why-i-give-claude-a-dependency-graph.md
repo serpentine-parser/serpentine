@@ -1,6 +1,6 @@
 ---
-title: "Why I Give Claude a Dependency Graph Instead of File Dumps"
-description: "Pasting files into an AI context window is the wrong abstraction. A code reference graph gives Claude structural edges — call relationships, module boundaries, and blast radius — in a fraction of the tokens."
+title: "Files Are the Wrong Interface for AI Code Agents"
+description: "When agents discover code file-by-file, they see syntax but miss relationships. A code reference graph makes call edges and blast radius explicit — so agents start from a map, not a pile."
 pubDate: 2026-05-31
 ---
 

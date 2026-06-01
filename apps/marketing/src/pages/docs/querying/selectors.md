@@ -37,7 +37,7 @@ Wildcard selectors like `*.ClassName` work directly in `--select` without needin
 
 ```bash
 # Matches any node named "User" regardless of module path
-serpentine analyze . --select "*.User" --no-cfg --pretty
+serpentine analyze . --select "*.User" --pretty
 ```
 
 ## Step 2 — Select nodes and their dependencies
@@ -45,21 +45,21 @@ serpentine analyze . --select "*.User" --no-cfg --pretty
 ### Plain pattern — just the matching nodes
 
 ```bash
-serpentine analyze . --select "src.auth.*" --no-cfg --pretty
+serpentine analyze . --select "src.auth.*" --pretty
 ```
 
 ### `+pattern` — matching nodes plus everything they depend on (upstream)
 
 ```bash
 # What does the login view need to work?
-serpentine analyze . --select "+*.login" --no-cfg --pretty
+serpentine analyze . --select "+*.login" --pretty
 ```
 
 ### `pattern+` — matching nodes plus everything that depends on them (downstream)
 
 ```bash
 # What breaks if I change the User model?
-serpentine analyze . --select "*.User+" --no-cfg --pretty
+serpentine analyze . --select "*.User+" --pretty
 ```
 
 ### `N+pattern+M` — bounded hops
@@ -68,7 +68,7 @@ Limit traversal depth to avoid pulling in the entire graph:
 
 ```bash
 # 2 levels upstream, 1 level downstream from the login view
-serpentine analyze . --select "2+*.login+1" --no-cfg --pretty
+serpentine analyze . --select "2+*.login+1" --pretty
 ```
 
 ### `@pattern` — the full connected component
@@ -76,13 +76,13 @@ serpentine analyze . --select "2+*.login+1" --no-cfg --pretty
 Everything reachable in any direction from the matching nodes:
 
 ```bash
-serpentine analyze . --select "@src.auth.*" --no-cfg --pretty
+serpentine analyze . --select "@src.auth.*" --pretty
 ```
 
 ### Multiple selectors — combined as a union
 
 ```bash
-serpentine analyze . --select "+src.auth.*,+src.payments.*" --no-cfg --pretty
+serpentine analyze . --select "+src.auth.*,+src.payments.*" --pretty
 ```
 
 ## Step 3 — Exclude noise
@@ -91,7 +91,7 @@ serpentine analyze . --select "+src.auth.*,+src.payments.*" --no-cfg --pretty
 
 ```bash
 # Show auth and its deps, but skip test files
-serpentine analyze . --select "+src.auth.*" --exclude "*test*" --no-cfg --pretty
+serpentine analyze . --select "+src.auth.*" --exclude "*test*" --pretty
 ```
 
 ## Glob pattern rules

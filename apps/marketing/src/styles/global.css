@@ -1,300 +1,40 @@
-@import url('https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;600&family=Fira+Sans:wght@300;400;600;700&family=Mamdimi+One&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;600&family=Fira+Sans:ital,wght@0,300;0,400;0,500;0,600;1,300&display=swap');
 
-/* ─── Variables ─── */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ─── CSS variables (used by canvas script + backdrop effects) ─── */
 :root {
-  --bg: #0d0f0e;
-  --surface: #131614;
-  --surface2: #191c1a;
-  --border: #242824;
-  --border2: #2e342e;
-  --text: #e8ede9;
-  --text-muted: #7a8a7c;
-  --text-dim: #4a574c;
-  --accent: #34d399;
-  --accent-dim: #065f46;
+  --bg:          #0d0f0e;
+  --surface:     #131614;
+  --surface2:    #191c1a;
+  --border:      #242824;
+  --border2:     #2e342e;
+  --text:        #e8ede9;
+  --text-muted:  #7a8a7c;
+  --text-dim:    #4a574c;
+  --accent:      #34d399;
+  --accent-dim:  #065f46;
   --accent-glow: rgba(52, 211, 153, 0.12);
-  --accent-glow2: rgba(52, 211, 153, 0.06);
-  --calls: #60a5fa;
-  --hasa: #f472b6;
-  --isa: #fb923c;
-  --ref: #a78bfa;
-}
-
-/* ─── Reset ─── */
-*, *::before, *::after {
-  margin: 0;
-  padding: 0;
-  box-sizing: border-box;
-}
-
-html {
-  scroll-behavior: smooth;
+  --accent-glow2:rgba(52, 211, 153, 0.06);
+  --calls:       #60a5fa;
+  --hasa:        #f472b6;
+  --isa:         #fb923c;
+  --ref:         #a78bfa;
 }
 
 /* ─── Base ─── */
+html { scroll-behavior: smooth; }
+
 body {
   background: var(--bg);
   color: var(--text);
   font-family: 'Fira Sans', sans-serif;
-  font-size: 16px;
-  line-height: 1.6;
   -webkit-font-smoothing: antialiased;
 }
 
-/* ─── Animations ─── */
-@keyframes fadeUp {
-  from { opacity: 0; transform: translateY(16px); }
-  to   { opacity: 1; transform: translateY(0); }
-}
-
-@keyframes pulse {
-  0%, 100% { opacity: 1; }
-  50%       { opacity: 0.4; }
-}
-
-/* ─── Nav ─── */
-nav {
-  position: fixed;
-  top: 0; left: 0; right: 0;
-  z-index: 100;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0 2rem;
-  height: 56px;
-  background: rgba(13, 15, 14, 0.85);
-  backdrop-filter: blur(12px);
-  border-bottom: 1px solid var(--border);
-}
-
-.nav-logo {
-  display: flex;
-  align-items: center;
-  gap: 0.6rem;
-  text-decoration: none;
-  color: var(--text);
-  font-weight: 500;
-  font-size: 0.95rem;
-  letter-spacing: 0.01em;
-}
-
-.nav-logo img {
-  height: 22px;
-  width: auto;
-}
-
-.nav-links {
-  display: flex;
-  align-items: center;
-  gap: 0.25rem;
-}
-
-.nav-links a {
-  color: var(--text-muted);
-  text-decoration: none;
-  font-size: 0.875rem;
-  padding: 0.4rem 0.75rem;
-  border-radius: 6px;
-  transition: color 0.15s, background 0.15s;
-}
-
-.nav-links a:hover {
-  color: var(--text);
-  background: var(--surface2);
-}
-
-.nav-links .btn-github {
-  display: flex;
-  align-items: center;
-  gap: 0.4rem;
-  color: var(--text-muted);
-  border: 1px solid var(--border2);
-  padding: 0.35rem 0.75rem;
-  border-radius: 6px;
-  font-size: 0.8rem;
-}
-
-.nav-links .btn-github:hover {
-  color: var(--text);
-  border-color: var(--border2);
-  background: var(--surface2);
-}
-
-/* ─── Buttons ─── */
-.btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.4rem;
-  padding: 0.6rem 1.25rem;
-  border-radius: 8px;
-  font-size: 0.875rem;
-  font-weight: 500;
-  text-decoration: none;
-  transition: all 0.15s;
-  cursor: pointer;
-  border: none;
-}
-
-.btn-primary {
-  background: var(--accent);
-  color: #0a1a0e;
-}
-.btn-primary:hover { background: #6ee7b7; }
-
-.btn-secondary {
-  background: transparent;
-  color: var(--text-muted);
-  border: 1px solid var(--border2);
-}
-.btn-secondary:hover {
-  color: var(--text);
-  background: var(--surface2);
-}
-
-/* ─── Section shared ─── */
-.section-label {
-  font-family: 'Fira Code', monospace;
-  font-size: 0.7rem;
-  color: var(--accent);
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  margin-bottom: 0.75rem;
-}
-
-.section-title {
-  font-size: clamp(1.75rem, 3vw, 2.5rem);
-  font-weight: 300;
-  letter-spacing: -0.02em;
-  margin-bottom: 0.75rem;
-  line-height: 1.2;
-}
-
-.section-sub {
-  color: var(--text-muted);
-  font-size: 1rem;
-  font-weight: 300;
-  margin-bottom: 3rem;
-  max-width: 480px;
-}
-
-/* ─── Code blocks ─── */
-.code-block {
-  background: var(--bg);
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  padding: 0.6rem 0.9rem;
-  font-family: 'Fira Code', monospace;
-  font-size: 0.82rem;
-  color: var(--text);
-  margin-bottom: 0.6rem;
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-}
-
-.code-block .cmd-prompt { color: var(--accent); }
-.code-block .cmd-flag   { color: var(--ref); }
-.code-block .cmd-arg    { color: var(--calls); }
-
-/* ─── Footer ─── */
-footer {
-  border-top: 1px solid var(--border);
-  padding: 2rem;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  max-width: 900px;
-  margin: 0 auto;
-}
-
-footer .foot-logo {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  font-size: 0.85rem;
-  color: var(--text-dim);
-}
-
-footer .foot-logo img {
-  height: 16px;
-  filter: brightness(0) invert(1);
-  opacity: 0.3;
-}
-
-footer .foot-links {
-  display: flex;
-  gap: 1.5rem;
-}
-
-footer .foot-links a {
-  font-size: 0.8rem;
-  color: var(--text-dim);
-  text-decoration: none;
-}
-
-footer .foot-links a:hover { color: var(--text-muted); }
-
-/* ─── Docs layout ─── */
-.docs-shell {
-  display: grid;
-  grid-template-columns: 240px 1fr;
-  min-height: calc(100vh - 56px);
-  margin-top: 56px;
-}
-
-.docs-sidebar {
-  border-right: 1px solid var(--border);
-  padding: 2rem 1.25rem;
-  position: sticky;
-  top: 56px;
-  height: calc(100vh - 56px);
-  overflow-y: auto;
-}
-
-.docs-sidebar-section {
-  margin-bottom: 1.75rem;
-}
-
-.docs-sidebar-section h3 {
-  font-family: 'Fira Code', monospace;
-  font-size: 0.65rem;
-  font-weight: 500;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  color: var(--text-dim);
-  margin-bottom: 0.5rem;
-  padding: 0 0.5rem;
-}
-
-.docs-sidebar-section ul {
-  list-style: none;
-}
-
-.docs-sidebar-section li a {
-  display: block;
-  padding: 0.3rem 0.5rem;
-  font-size: 0.875rem;
-  color: var(--text-muted);
-  text-decoration: none;
-  border-radius: 5px;
-  transition: color 0.15s, background 0.15s;
-}
-
-.docs-sidebar-section li a:hover {
-  color: var(--text);
-  background: var(--surface2);
-}
-
-.docs-sidebar-section li a.active {
-  color: var(--accent);
-  background: var(--accent-glow2);
-}
-
-.docs-content {
-  padding: 3rem 3.5rem;
-  max-width: 780px;
-}
-
+/* ─── Docs prose (markdown-rendered content — can't use Tailwind here) ─── */
 .docs-content h1 {
   font-size: 2rem;
   font-weight: 300;
@@ -302,7 +42,6 @@ footer .foot-links a:hover { color: var(--text-muted); }
   margin-bottom: 0.5rem;
   line-height: 1.2;
 }
-
 .docs-content .doc-description {
   color: var(--text-muted);
   font-size: 1.05rem;
@@ -311,7 +50,6 @@ footer .foot-links a:hover { color: var(--text-muted); }
   padding-bottom: 2rem;
   border-bottom: 1px solid var(--border);
 }
-
 .docs-content h2 {
   font-size: 1.25rem;
   font-weight: 500;
@@ -320,7 +58,6 @@ footer .foot-links a:hover { color: var(--text-muted); }
   margin-bottom: 0.75rem;
   color: var(--text);
 }
-
 .docs-content h3 {
   font-size: 1rem;
   font-weight: 500;
@@ -328,26 +65,21 @@ footer .foot-links a:hover { color: var(--text-muted); }
   margin-bottom: 0.5rem;
   color: var(--text);
 }
-
 .docs-content p {
   color: var(--text-muted);
   font-weight: 300;
   line-height: 1.75;
   margin-bottom: 1rem;
 }
-
-.docs-content ul, .docs-content ol {
+.docs-content ul,
+.docs-content ol {
   color: var(--text-muted);
   font-weight: 300;
   line-height: 1.75;
   padding-left: 1.5rem;
   margin-bottom: 1rem;
 }
-
-.docs-content li {
-  margin-bottom: 0.25rem;
-}
-
+.docs-content li { margin-bottom: 0.25rem; }
 .docs-content code {
   font-family: 'Fira Code', monospace;
   font-size: 0.82em;
@@ -357,7 +89,6 @@ footer .foot-links a:hover { color: var(--text-muted); }
   padding: 0.15em 0.4em;
   color: var(--accent);
 }
-
 .docs-content pre {
   background: var(--surface);
   border: 1px solid var(--border);
@@ -370,7 +101,6 @@ footer .foot-links a:hover { color: var(--text-muted); }
   line-height: 1.7;
   color: var(--text);
 }
-
 .docs-content pre code {
   background: none;
   border: none;
@@ -378,14 +108,12 @@ footer .foot-links a:hover { color: var(--text-muted); }
   font-size: inherit;
   color: inherit;
 }
-
 .docs-content table {
   width: 100%;
   border-collapse: collapse;
   margin-bottom: 1.25rem;
   font-size: 0.875rem;
 }
-
 .docs-content th {
   text-align: left;
   padding: 0.6rem 0.75rem;
@@ -396,7 +124,6 @@ footer .foot-links a:hover { color: var(--text-muted); }
   font-family: 'Fira Code', monospace;
   font-size: 0.75rem;
 }
-
 .docs-content td {
   padding: 0.6rem 0.75rem;
   border: 1px solid var(--border);
@@ -404,11 +131,7 @@ footer .foot-links a:hover { color: var(--text-muted); }
   font-weight: 300;
   vertical-align: top;
 }
-
-.docs-content td code {
-  font-size: 0.8em;
-}
-
+.docs-content td code { font-size: 0.8em; }
 .docs-content blockquote {
   border-left: 2px solid var(--border2);
   padding-left: 1rem;
@@ -418,15 +141,8 @@ footer .foot-links a:hover { color: var(--text-muted); }
   font-style: italic;
   font-weight: 300;
 }
-
-.docs-content a {
-  color: var(--accent);
-  text-decoration: none;
-}
-.docs-content a:hover {
-  text-decoration: underline;
-}
-
+.docs-content a { color: var(--accent); text-decoration: none; }
+.docs-content a:hover { text-decoration: underline; }
 .docs-content img {
   max-width: 100%;
   height: auto;
@@ -434,30 +150,8 @@ footer .foot-links a:hover { color: var(--text-muted); }
   border: 1px solid var(--border);
   margin: 1rem 0;
 }
-
 .docs-content hr {
   border: none;
   border-top: 1px solid var(--border);
   margin: 2rem 0;
-}
-
-/* ─── Responsive ─── */
-@media (max-width: 900px) {
-  .docs-shell {
-    grid-template-columns: 1fr;
-  }
-  .docs-sidebar {
-    display: none;
-  }
-  .docs-content {
-    padding: 2rem 1.5rem;
-  }
-}
-
-@media (max-width: 700px) {
-  footer {
-    flex-direction: column;
-    gap: 1.5rem;
-    text-align: center;
-  }
 }

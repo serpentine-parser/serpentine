@@ -14,15 +14,17 @@ Run once inside any project:
 serpentine init
 ```
 
-Serpentine auto-detects which harnesses are in use and installs the appropriate configuration for each:
+`init` always creates `.serpentine.yml` (project config) and adds `.serpentine` to `.gitignore`. It then auto-detects which harnesses are in use and installs the appropriate configuration for each:
 
 | Harness | What gets installed |
 | ------- | ------------------- |
-| `claude` | `.claude/skills/code-analysis/SKILL.md` + appends to `CLAUDE.md` |
+| `claude` | `.claude/skills/code-analysis/SKILL.md` + appends serpentine section to `CLAUDE.md` |
 | `cursor` | `.cursor/rules/serpentine.mdc` |
-| `copilot` | appends to `.github/copilot-instructions.md` |
-| `codex` | appends to `AGENTS.md` |
-| `opencode` | appends to `AGENTS.md` |
+| `copilot` | appends serpentine section to `.github/copilot-instructions.md` |
+| `codex` | appends serpentine section to `AGENTS.md` |
+| `opencode` | appends serpentine section to `AGENTS.md` |
+
+Append-mode harnesses (`claude`, `copilot`, `codex`, `opencode`) add a `## Serpentine` section to existing files and skip if the section is already present. `cursor` skips if `.cursor/rules/serpentine.mdc` already exists.
 
 Target a specific harness with `--harness`:
 
@@ -30,8 +32,6 @@ Target a specific harness with `--harness`:
 serpentine init --harness cursor
 serpentine init --harness claude --harness copilot
 ```
-
-Already-existing files are skipped rather than overwritten.
 
 ## The problem it solves
 
@@ -50,13 +50,16 @@ Serpentine collapses that exploration into 2–3 CLI calls. The agent gets a str
 serpentine stats .
 
 # 2. Find relevant node IDs by name
-serpentine catalog . --filter "*auth*" --format json --pretty
+serpentine catalog . --filter "*auth*"
 
-# 3. Get the subgraph for the relevant area
-serpentine analyze . --select "+src.auth.*+" --no-cfg --edges-only --pretty
+# 3. Get the subgraph with source code for the relevant area
+serpentine analyze . --select "+src.auth.*+" --source
+
+# 3b. Or edges-only for a compact cross-boundary picture
+serpentine analyze . --select "+src.auth.*+" --edges-only --pretty
 ```
 
-Read the edges to understand what connects to what, then read only the files that are actually relevant.
+Use `--source` to include source code blocks inline — useful when the agent needs to read the implementation without making separate file reads. Use `--edges-only` when you only need the structural picture; it produces a much smaller output.
 
 ## Scenarios where this pays off
 
@@ -82,6 +85,6 @@ Use `--select "+*.entrypoint+3"` to get 3 hops downstream from an entry point an
 
 ## Token efficiency
 
-The `--no-cfg` flag strips control-flow graph data from nodes (which can be large). Combined with `--edges-only`, the output is typically 10–50× smaller than the full graph JSON, while containing all the structural information an agent needs.
+`--edges-only` outputs only the edges array rather than the full node tree, which is typically 10–50× smaller while containing all the structural information an agent needs to trace call chains.
 
 For very large codebases, chain `--select` with `--exclude "*test*"` to remove noise before passing the result to an agent.

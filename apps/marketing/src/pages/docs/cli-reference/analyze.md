@@ -19,7 +19,6 @@ serpentine analyze [PATH] [OPTIONS]
 | `--pretty` | Pretty-print JSON output |
 | `--select TEXT` | Selector expression to filter nodes |
 | `--exclude TEXT` | Exclusion pattern (same syntax as `--select`) |
-| `--no-cfg` | Strip control-flow graph data from nodes |
 | `--edges-only` | Output only the edges array (compact, JSON only) |
 | `--source` | Include source code blocks in text output |
 | `--include-assignments` | Include variable/assignment nodes in text output |
@@ -44,7 +43,7 @@ serpentine analyze . --format json --pretty
 Get just the edges for a subgraph (compact, agent-friendly):
 
 ```bash
-serpentine analyze . --select "+src.auth.*+" --no-cfg --edges-only --pretty
+serpentine analyze . --select "+src.auth.*+" --edges-only --pretty
 ```
 
 Save output to a file:
