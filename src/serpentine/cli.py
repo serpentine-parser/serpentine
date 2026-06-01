@@ -1,10 +1,13 @@
 """
-Serpentine CLI - Command-line interface for dependency graph analysis.
+Serpentine CLI - Command-line interface for code reference graph analysis.
 
 This module provides the main entry point for the serpentine tool.
 Commands are organized by concern:
-- `serve`: Start the web server with UI and optional file watching
-- `analyze`: One-shot analysis of a project (outputs JSON)
+- `init`: Initialize a project — writes config, updates .gitignore, installs harness instructions
+- `stats`: Quick project scale summary (node/edge counts, top-level modules)
+- `catalog`: Flat node list for discovery; supports glob filtering
+- `analyze`: Full graph query with selector syntax; outputs JSON or annotated source text
+- `serve`: Start the web server with live code reference graph UI and optional file watching
 """
 
 import fnmatch
@@ -70,7 +73,7 @@ _CLAUDE_MD_SECTION = """\
 @click.group()
 @click.version_option(version=__version__, prog_name="serpentine")
 def main() -> None:
-    """Serpentine: Fast dependency graph analysis for Python projects."""
+    """Serpentine: Fast code reference graph analysis for Python, JS/TS, and Rust projects."""
     pass
 
 
@@ -109,7 +112,7 @@ def serve(
     no_browser: bool,
     no_watch: bool,
 ) -> None:
-    """Start the serpentine web server with live dependency graph visualization.
+    """Start the serpentine web server with live code reference graph visualization.
 
     PATH is the directory to analyze (defaults to current directory).
 
@@ -187,7 +190,7 @@ def serve(
     "--select",
     type=str,
     default=None,
-    help="dbt-style selector to filter nodes (e.g. '+auth*', 'mod+', '@core')",
+    help="Node selector pattern (e.g. '*.Symbol', '+*.Symbol', '*.Symbol+', '@*.Symbol')",
 )
 @click.option(
     "--exclude",
@@ -259,15 +262,16 @@ def analyze(
     source: bool,
     include_assignments: bool,
 ) -> None:
-    """Analyze a project and output the dependency graph as JSON.
+    """Analyze a project and output the code reference graph.
 
     PATH is the directory to analyze (defaults to current directory).
 
     Examples:
-        serpentine analyze                  # Output to stdout
-        serpentine analyze -o graph.json    # Output to file
-        serpentine analyze --pretty         # Pretty-printed
-        serpentine analyze --select "auth*" --exclude "test_*" --no-cfg --pretty
+        serpentine analyze                                        # Text edges to stdout
+        serpentine analyze --select "*.AuthService" --source      # Source + edges for a symbol
+        serpentine analyze --select "+*.AuthService" --source     # Include upstream dependencies
+        serpentine analyze --format json --pretty                 # Full graph as pretty JSON
+        serpentine analyze --format json --select "auth*" --no-cfg --pretty
     """
     project_path = Path(path).resolve()
     state_manager = GraphStateManager(project_path)
@@ -421,7 +425,7 @@ def catalog(
         serpentine catalog .
         serpentine catalog . --filter "auth*" --filter "login*"
         serpentine catalog . --include-assignments --filter "auth*"
-        serpentine catalog . --include-third-party --pretty
+        serpentine catalog . --include-third-party --format json --pretty
     """
     project_path = Path(path).resolve()
     state_manager = GraphStateManager(project_path)
@@ -603,19 +607,156 @@ def stats(
     click.echo(json.dumps(result, indent=2) if pretty else json.dumps(result))
 
 
+_SUPPORTED_HARNESSES = ("claude", "cursor", "copilot", "codex", "opencode")
+
+
+def _detect_harnesses(project_path: Path) -> list[str]:
+    detected = []
+    if (project_path / ".claude").is_dir():
+        detected.append("claude")
+    if (project_path / ".cursor").is_dir():
+        detected.append("cursor")
+    if (
+        (project_path / ".github" / "copilot-instructions.md").exists()
+        or (project_path / ".vscode").is_dir()
+    ):
+        detected.append("copilot")
+    if (project_path / "AGENTS.md").exists():
+        detected.append("codex")
+    if (project_path / ".opencode").is_dir():
+        detected.append("opencode")
+    return detected or ["claude"]
+
+
+def _init_claude(project_path: Path) -> list[tuple[str, str]]:
+    results: list[tuple[str, str]] = []
+
+    claude_dir = project_path / ".claude"
+    if claude_dir.exists() and not claude_dir.is_dir():
+        results.append(("✗", ".claude exists as a file — cannot install skills"))
+    else:
+        for skill_name in ("code-analysis",):
+            skill_target = claude_dir / "skills" / skill_name / "SKILL.md"
+            rel = str(skill_target.relative_to(project_path))
+            if skill_target.exists():
+                results.append(("⚠", f"{rel} — already exists, skipped"))
+                continue
+            try:
+                bundled = _res_files("serpentine.skills").joinpath(f"{skill_name}.md")
+                skill_content = bundled.read_text(encoding="utf-8")
+            except FileNotFoundError:
+                results.append(
+                    ("✗", f"{rel} — skill not found in package, try reinstalling serpentine")
+                )
+                continue
+            try:
+                skill_target.parent.mkdir(parents=True, exist_ok=True)
+                skill_target.write_text(skill_content)
+                results.append(("✓", f"{rel} installed"))
+            except (PermissionError, OSError) as e:
+                results.append(("✗", f"{rel} — {e}"))
+
+    claude_md_path = project_path / "CLAUDE.md"
+    try:
+        if claude_md_path.exists():
+            content = claude_md_path.read_text()
+            if any(line.strip() == "## Serpentine" for line in content.splitlines()):
+                results.append(("✓", "CLAUDE.md — serpentine section already present"))
+            else:
+                sep = "" if content.endswith("\n") else "\n"
+                claude_md_path.write_text(f"{content}{sep}\n{_CLAUDE_MD_SECTION}")
+                results.append(("✓", "CLAUDE.md updated"))
+        else:
+            claude_md_path.write_text(_CLAUDE_MD_SECTION)
+            results.append(("✓", "CLAUDE.md created"))
+    except (PermissionError, OSError) as e:
+        results.append(("✗", f"CLAUDE.md — {e}"))
+
+    return results
+
+
+def _init_cursor(project_path: Path) -> list[tuple[str, str]]:
+    rule_path = project_path / ".cursor" / "rules" / "serpentine.mdc"
+    rel = str(rule_path.relative_to(project_path))
+    if rule_path.exists():
+        return [("⚠", f"{rel} — already exists, skipped")]
+    try:
+        content = _res_files("serpentine.skills").joinpath("cursor-rules.md").read_text(encoding="utf-8")
+    except FileNotFoundError:
+        return [("✗", f"{rel} — content not found in package, try reinstalling serpentine")]
+    try:
+        rule_path.parent.mkdir(parents=True, exist_ok=True)
+        rule_path.write_text(content)
+        return [("✓", f"{rel} installed")]
+    except (PermissionError, OSError) as e:
+        return [("✗", f"{rel} — {e}")]
+
+
+def _init_copilot(project_path: Path) -> list[tuple[str, str]]:
+    instructions_path = project_path / ".github" / "copilot-instructions.md"
+    rel = str(instructions_path.relative_to(project_path))
+    try:
+        section = _res_files("serpentine.skills").joinpath("copilot-instructions.md").read_text(encoding="utf-8")
+    except FileNotFoundError:
+        return [("✗", f"{rel} — content not found in package, try reinstalling serpentine")]
+    try:
+        if instructions_path.exists():
+            content = instructions_path.read_text()
+            if "## Serpentine" in content:
+                return [("⚠", f"{rel} — serpentine section already present")]
+            sep = "" if content.endswith("\n") else "\n"
+            instructions_path.write_text(f"{content}{sep}\n{section}")
+            return [("✓", f"{rel} updated")]
+        instructions_path.parent.mkdir(parents=True, exist_ok=True)
+        instructions_path.write_text(section)
+        return [("✓", f"{rel} created")]
+    except (PermissionError, OSError) as e:
+        return [("✗", f"{rel} — {e}")]
+
+
+def _init_agents_md(project_path: Path, label: str) -> list[tuple[str, str]]:
+    agents_path = project_path / "AGENTS.md"
+    try:
+        section = _res_files("serpentine.skills").joinpath("agents-md.md").read_text(encoding="utf-8")
+    except FileNotFoundError:
+        return [("✗", f"AGENTS.md — content not found in package, try reinstalling serpentine")]
+    try:
+        if agents_path.exists():
+            content = agents_path.read_text()
+            if "## Serpentine" in content:
+                return [("⚠", f"AGENTS.md — serpentine section already present (skipped for {label})")]
+            sep = "" if content.endswith("\n") else "\n"
+            agents_path.write_text(f"{content}{sep}\n{section}")
+            return [("✓", f"AGENTS.md updated (for {label})")]
+        agents_path.write_text(section)
+        return [("✓", f"AGENTS.md created (for {label})")]
+    except (PermissionError, OSError) as e:
+        return [("✗", f"AGENTS.md — {e}")]
+
+
 @main.command()
 @click.argument("path", type=click.Path(exists=True), default=".")
-def init(path: str) -> None:
+@click.option(
+    "--harness",
+    "harnesses",
+    multiple=True,
+    type=click.Choice(_SUPPORTED_HARNESSES),
+    help="Harness to initialize (can be repeated). Auto-detects if not specified.",
+)
+def init(path: str, harnesses: tuple[str, ...]) -> None:
     """Initialize a project for use with serpentine.
 
-    Generates .serpentine.yml, updates .gitignore, installs Claude Code skills,
-    and appends a serpentine section to CLAUDE.md.
+    Generates .serpentine.yml, updates .gitignore, and installs serpentine
+    instructions for your AI coding harness. Supports Claude Code, Cursor,
+    GitHub Copilot, Codex, and OpenCode. Auto-detects which harnesses are in
+    use; use --harness to target a specific one.
 
     PATH is the directory to initialize (defaults to current directory).
 
     Examples:
-        serpentine init             # Initialize current directory
-        serpentine init ./my-project
+        serpentine init                      # Auto-detect harnesses
+        serpentine init --harness cursor     # Cursor only
+        serpentine init --harness claude --harness copilot
     """
     project_path = Path(path).resolve()
 
@@ -660,53 +801,22 @@ def init(path: str) -> None:
     except (PermissionError, OSError) as e:
         results.append(("✗", f".gitignore — {e}"))
 
-    # Step 3: Skill files
-    claude_dir = project_path / ".claude"
-    if claude_dir.exists() and not claude_dir.is_dir():
-        results.append(("✗", ".claude exists as a file — cannot install skills"))
-    else:
-        for skill_name in ("code-analysis",):
-            skill_target = claude_dir / "skills" / skill_name / "SKILL.md"
-            rel = str(skill_target.relative_to(project_path))
-            if skill_target.exists():
-                results.append(("⚠", f"{rel} — already exists, skipped"))
-                continue
-            try:
-                bundled = _res_files("serpentine.skills").joinpath(f"{skill_name}.md")
-                skill_content = bundled.read_text(encoding="utf-8")
-            except FileNotFoundError:
-                results.append(
-                    (
-                        "✗",
-                        f"{rel} — skill not found in package, try reinstalling serpentine",
-                    )
-                )
-                continue
-            try:
-                skill_target.parent.mkdir(parents=True, exist_ok=True)
-                skill_target.write_text(skill_content)
-                results.append(("✓", f"{rel} installed"))
-            except (PermissionError, OSError) as e:
-                results.append(("✗", f"{rel} — {e}"))
+    # Step 3: Harness-specific setup
+    active = list(harnesses) if harnesses else _detect_harnesses(project_path)
+    for harness in active:
+        if harness == "claude":
+            results.extend(_init_claude(project_path))
+        elif harness == "cursor":
+            results.extend(_init_cursor(project_path))
+        elif harness == "copilot":
+            results.extend(_init_copilot(project_path))
+        elif harness == "codex":
+            results.extend(_init_agents_md(project_path, "Codex"))
+        elif harness == "opencode":
+            results.extend(_init_agents_md(project_path, "OpenCode"))
 
-    # Step 4: CLAUDE.md
-    claude_md_path = project_path / "CLAUDE.md"
-    try:
-        if claude_md_path.exists():
-            content = claude_md_path.read_text()
-            if any(line.strip() == "## Serpentine" for line in content.splitlines()):
-                results.append(("✓", "CLAUDE.md — serpentine section already present"))
-            else:
-                sep = "" if content.endswith("\n") else "\n"
-                claude_md_path.write_text(f"{content}{sep}\n{_CLAUDE_MD_SECTION}")
-                results.append(("✓", "CLAUDE.md updated"))
-        else:
-            claude_md_path.write_text(_CLAUDE_MD_SECTION)
-            results.append(("✓", "CLAUDE.md created"))
-    except (PermissionError, OSError) as e:
-        results.append(("✗", f"CLAUDE.md — {e}"))
-
-    click.echo("\nserpentine init complete:")
+    harness_label = ", ".join(active)
+    click.echo(f"\nserpentine init complete ({harness_label}):")
     for symbol, message in results:
         click.echo(f"  {symbol} {message}")
 

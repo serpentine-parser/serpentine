@@ -254,7 +254,7 @@ dependencies = [
 
 [[package]]
 name = "serpentine"
-version = "0.1.6"
+version = "0.2.1"
 dependencies = [
  "pyo3",
  "rayon",

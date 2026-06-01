@@ -1,0 +1,226 @@
+---
+import { getCollection } from 'astro:content';
+import Base from '../../layouts/Base.astro';
+
+export async function getStaticPaths() {
+  const posts = await getCollection('blog');
+  return posts.map((post) => ({
+    params: { slug: post.slug },
+    props: { post },
+  }));
+}
+
+const { post } = Astro.props;
+const { Content } = await post.render();
+
+const pubDate = post.data.pubDate.toLocaleDateString('en-US', {
+  year: 'numeric',
+  month: 'long',
+  day: 'numeric',
+});
+---
+
+<Base title={`${post.data.title} — Serpentine`}>
+  <div class="post-shell">
+    <div class="post-header">
+      <a class="back-link" href="/blog">← Blog</a>
+      <div class="post-meta">{pubDate}</div>
+      <h1>{post.data.title}</h1>
+      {post.data.description && <p class="post-description">{post.data.description}</p>}
+    </div>
+    <div class="post-body">
+      <Content />
+    </div>
+  </div>
+</Base>
+
+<style>
+.post-shell {
+  margin-top: 56px;
+  max-width: 720px;
+  margin-left: auto;
+  margin-right: auto;
+  padding: 3rem 3.5rem 8rem;
+}
+
+.back-link {
+  display: inline-block;
+  color: var(--text-muted);
+  font-size: 0.875rem;
+  text-decoration: none;
+  margin-bottom: 2rem;
+  transition: color 0.15s;
+}
+
+.back-link:hover {
+  color: var(--text);
+}
+
+.post-header {
+  margin-bottom: 2.5rem;
+  padding-bottom: 2rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.post-meta {
+  font-size: 0.75rem;
+  color: var(--text-dim);
+  font-family: 'Fira Code', monospace;
+  margin-bottom: 0.75rem;
+}
+
+.post-header h1 {
+  font-size: 2rem;
+  font-weight: 300;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+  margin-bottom: 0.5rem;
+}
+
+.post-description {
+  color: var(--text-muted);
+  font-size: 1.05rem;
+  font-weight: 300;
+  margin: 0;
+}
+
+/* Prose — mirrors .docs-content from global.css.
+   Uses :global() because <Content /> renders outside this component's scope. */
+.post-body :global(h2) {
+  font-size: 1.25rem;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  margin-top: 2.5rem;
+  margin-bottom: 0.75rem;
+  color: var(--text);
+}
+
+.post-body :global(h3) {
+  font-size: 1rem;
+  font-weight: 500;
+  margin-top: 1.75rem;
+  margin-bottom: 0.5rem;
+  color: var(--text);
+}
+
+.post-body :global(p) {
+  color: var(--text-muted);
+  font-weight: 300;
+  line-height: 1.75;
+  margin-bottom: 1rem;
+}
+
+.post-body :global(strong) {
+  font-weight: 600;
+  color: var(--text);
+}
+
+.post-body :global(a) {
+  color: var(--accent);
+  text-decoration: none;
+}
+
+.post-body :global(a:hover) {
+  text-decoration: underline;
+}
+
+.post-body :global(code) {
+  font-family: 'Fira Code', monospace;
+  font-size: 0.82em;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 0.15em 0.4em;
+  color: var(--accent);
+}
+
+.post-body :global(pre) {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 1.25rem 1.5rem;
+  overflow-x: auto;
+  margin-bottom: 1.25rem;
+  font-family: 'Fira Code', monospace;
+  font-size: 0.82rem;
+  line-height: 1.7;
+  color: var(--text);
+}
+
+.post-body :global(pre code) {
+  background: none;
+  border: none;
+  padding: 0;
+  font-size: inherit;
+  color: inherit;
+}
+
+.post-body :global(ul),
+.post-body :global(ol) {
+  color: var(--text-muted);
+  font-weight: 300;
+  line-height: 1.75;
+  padding-left: 1.5rem;
+  margin-bottom: 1rem;
+}
+
+.post-body :global(li) {
+  margin-bottom: 0.25rem;
+}
+
+.post-body :global(table) {
+  width: 100%;
+  border-collapse: collapse;
+  margin-bottom: 1.25rem;
+  font-size: 0.875rem;
+}
+
+.post-body :global(th) {
+  text-align: left;
+  padding: 0.6rem 0.75rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  font-weight: 500;
+  font-family: 'Fira Code', monospace;
+  font-size: 0.75rem;
+}
+
+.post-body :global(td) {
+  padding: 0.6rem 0.75rem;
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  font-weight: 300;
+  vertical-align: top;
+}
+
+.post-body :global(img) {
+  max-width: 100%;
+  height: auto;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  margin: 1rem 0;
+}
+
+.post-body :global(blockquote) {
+  border-left: 2px solid var(--border2);
+  padding-left: 1rem;
+  margin-left: 0;
+  margin-bottom: 1rem;
+  color: var(--text-dim);
+  font-style: italic;
+  font-weight: 300;
+}
+
+.post-body :global(hr) {
+  border: none;
+  border-top: 1px solid var(--border);
+  margin: 2rem 0;
+}
+
+@media (max-width: 700px) {
+  .post-shell {
+    padding: 2rem 1.5rem 6rem;
+  }
+}
+</style>

@@ -1,0 +1,108 @@
+---
+import { getCollection } from 'astro:content';
+import Base from '../../layouts/Base.astro';
+
+const posts = (await getCollection('blog')).sort(
+  (a, b) => b.data.pubDate.getTime() - a.data.pubDate.getTime()
+);
+---
+
+<Base title="Blog — Serpentine">
+  <div class="blog-shell">
+    <div class="blog-header">
+      <div class="section-label">Blog</div>
+      <h1>Notes on code intelligence</h1>
+      <p class="blog-sub">Releases, deep dives, and agent workflows.</p>
+    </div>
+
+    <ul class="post-list">
+      {posts.map((post) => (
+        <li class="post-item">
+          <a href={`/blog/${post.slug}`} class="post-link">
+            <div class="post-date">
+              {post.data.pubDate.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}
+            </div>
+            <h2 class="post-title">{post.data.title}</h2>
+            {post.data.description && (
+              <p class="post-excerpt">{post.data.description}</p>
+            )}
+          </a>
+        </li>
+      ))}
+    </ul>
+  </div>
+</Base>
+
+<style>
+.blog-shell {
+  margin-top: 56px;
+  max-width: 720px;
+  margin-left: auto;
+  margin-right: auto;
+  padding: 4rem 2rem 6rem;
+}
+
+.blog-header {
+  margin-bottom: 3rem;
+  padding-bottom: 2.5rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.blog-header h1 {
+  font-size: clamp(1.75rem, 3vw, 2.5rem);
+  font-weight: 300;
+  letter-spacing: -0.02em;
+  margin-bottom: 0.5rem;
+  margin-top: 0.75rem;
+}
+
+.blog-sub {
+  color: var(--text-muted);
+  font-weight: 300;
+}
+
+.post-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.post-item {
+  border-bottom: 1px solid var(--border);
+}
+
+.post-link {
+  display: block;
+  padding: 2rem 0;
+  text-decoration: none;
+  color: inherit;
+  transition: opacity 0.15s;
+}
+
+.post-link:hover .post-title {
+  color: var(--accent);
+}
+
+.post-date {
+  font-size: 0.8125rem;
+  font-family: 'Fira Code', monospace;
+  color: var(--text-dim);
+  margin-bottom: 0.5rem;
+}
+
+.post-title {
+  font-size: 1.25rem;
+  font-weight: 300;
+  letter-spacing: -0.01em;
+  margin: 0 0 0.5rem;
+  transition: color 0.15s;
+}
+
+.post-excerpt {
+  color: var(--text-muted);
+  font-size: 0.9375rem;
+  font-weight: 300;
+  line-height: 1.6;
+  margin: 0;
+}
+</style>
