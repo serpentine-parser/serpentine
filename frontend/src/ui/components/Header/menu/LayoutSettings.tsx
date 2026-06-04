@@ -135,7 +135,7 @@ export function LayoutSettingsPanel({
         Edges
       </div>
       <div className="px-2 space-y-1.5">
-        <NumberInputRow label="Curvature" value={layoutSettings.edgeCurvature} min={0} max={150} step={5} onChange={(v) => patch("edgeCurvature", v)} />
+        <NumberInputRow label="Curvature" value={layoutSettings.edgeCurvature} min={0} max={100} step={5} onChange={(v) => patch("edgeCurvature", v)} />
         <NumberInputRow label="Stroke width" value={layoutSettings.edgeStrokeWidth} min={0.5} max={5} step={0.1} onChange={(v) => patch("edgeStrokeWidth", v)} />
       </div>
 
