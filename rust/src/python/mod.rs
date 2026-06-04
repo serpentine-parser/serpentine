@@ -743,12 +743,47 @@ fn emit_function_events(ctx: &ParseContext, node: Node, events: &mut Vec<Event>)
             ScopeType::Function,
             name.clone(),
             qualname.clone(),
-            parameters,
+            parameters.clone(),
             vec![],
             docstring,
             node,
             ctx.file_path,
         ));
+
+        // Emit define_name for each parameter so LEGB resolves them locally
+        // instead of escaping to the calling scope.
+        if let Some(params_node) = node.child_by_field_name("parameters") {
+            let mut cursor = params_node.walk();
+            for child in params_node.children(&mut cursor) {
+                let param_name_node = match child.kind() {
+                    "identifier" => Some(child),
+                    "default_parameter" | "typed_parameter" | "typed_default_parameter" => {
+                        child.child_by_field_name("name")
+                    }
+                    "list_splat_pattern" | "list_splat"
+                    | "dictionary_splat_pattern" | "dictionary_splat" => {
+                        let mut c = child.walk();
+                        let found = child.children(&mut c).find(|n| n.kind() == "identifier");
+                        found
+                    }
+                    _ => None,
+                };
+                if let Some(pnode) = param_name_node {
+                    let param_name = get_node_text(ctx, pnode);
+                    if param_name != "self" && param_name != "cls" {
+                        let param_qualname = build_qualname(ctx, node, &param_name);
+                        events.push(Event::define_name(
+                            param_name,
+                            param_qualname,
+                            "variable",
+                            pnode,
+                            ctx.file_path,
+                        ));
+                    }
+                }
+            }
+        }
+
         // exit_scope is emitted by walk_node_python after processing children
     }
 }
