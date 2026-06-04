@@ -231,6 +231,20 @@ A slider from **1** to **∞** that controls how many hops of edges are drawn fr
 
 Reducing edge depth on large graphs reduces visual clutter.
 
+#### Edge types
+
+Five toggle buttons — one per edge type — that control which edge categories are visible. Active (shown) types are highlighted in green; inactive types are grayed out. Clicking an active type hides it; clicking an inactive type shows it again.
+
+| Type | Meaning |
+|------|---------|
+| **calls** | One function calls another |
+| **is-a** | A class inherits from another |
+| **has-a** | A constructor call (one object contains an instance of another) |
+| **references** | A name reference (e.g. accessing a constant or type) |
+| **imports** | A module-level import |
+
+The selection persists across reloads via localStorage.
+
 #### Export
 
 | Button | Action |

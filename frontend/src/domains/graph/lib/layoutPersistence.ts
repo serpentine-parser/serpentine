@@ -1,10 +1,11 @@
 import type {
   DisplaySettings,
+  EdgeType,
   LayoutSettings,
   NodePersistState,
   PersistedLayoutData,
 } from "../model/layoutTypes";
-import { DEFAULT_LAYOUT_SETTINGS } from "../model/layoutTypes";
+import { ALL_EDGE_TYPES, DEFAULT_LAYOUT_SETTINGS } from "../model/layoutTypes";
 
 const CURRENT_VERSION = 1 as const;
 const INFINITY_SENTINEL = "__Infinity__";
@@ -36,6 +37,11 @@ function deserializeSettings(
   }
   if (typeof raw.selectorQuery === "string") out.selectorQuery = raw.selectorQuery;
   if (typeof raw.selectorExclude === "string") out.selectorExclude = raw.selectorExclude;
+  if (Array.isArray(raw.filteredEdgeTypes)) {
+    out.filteredEdgeTypes = (raw.filteredEdgeTypes as unknown[]).filter(
+      (t): t is EdgeType => ALL_EDGE_TYPES.includes(t as EdgeType),
+    );
+  }
   return out;
 }
 

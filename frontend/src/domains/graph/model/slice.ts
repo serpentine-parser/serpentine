@@ -7,7 +7,7 @@ import { layoutCache } from '../lib/layoutPersistence';
 import { NodeMovement } from '../lib/movement';
 import { flattenCfgNodes, nodeUtils } from '../lib/nodeUtils';
 import { SelectionAndHighlighting } from '../lib/selectionAndHighlighting';
-import { LayoutSettings } from './layoutTypes';
+import { ALL_EDGE_TYPES, EdgeType, LayoutSettings } from './layoutTypes';
 import { Edge, Node, Viewport, ZoomBounds } from './types';
 
 const collisionDetector = new CollisionDetector();
@@ -73,6 +73,8 @@ export type GraphSlice = {
   expandChildren: (nodeId: string) => void;
   collapseChildren: (nodeId: string) => void;
   resetLayout: () => void;
+  filteredEdgeTypes: EdgeType[];
+  setFilteredEdgeTypes: (types: EdgeType[]) => void;
 };
 
 export const createGraphSlice: StateCreator<any, [], [], GraphSlice> = (set, get) => ({
@@ -102,6 +104,7 @@ export const createGraphSlice: StateCreator<any, [], [], GraphSlice> = (set, get
   wsSend: null,
   layoutSettings: layoutCache.getLayoutSettings(),
   sidebarExpansionSignal: null,
+  filteredEdgeTypes: layoutCache.getDisplaySettings().filteredEdgeTypes ?? ALL_EDGE_TYPES,
 
   initialize: (nodes, edges = []) => {
 
@@ -154,8 +157,18 @@ export const createGraphSlice: StateCreator<any, [], [], GraphSlice> = (set, get
 
   setVisibleEdges: () => {
     const state = get();
-    const edges = edgeUtils.getVisibleEdges(state.allEdges, state.nodes, state.visibleEdgeDepth);
+    const allVisible = edgeUtils.getVisibleEdges(state.allEdges, state.nodes, state.visibleEdgeDepth);
+    const filtered = state.filteredEdgeTypes;
+    const edges = filtered.length === ALL_EDGE_TYPES.length ? allVisible : allVisible.filter((e) => filtered.includes(e.type));
     set({ visibleEdges: edges });
+  },
+
+  setFilteredEdgeTypes: (types: EdgeType[]) => {
+    layoutCache.saveDisplaySettings({ filteredEdgeTypes: types });
+    set({ filteredEdgeTypes: types });
+    const state = get();
+    const allVisible = edgeUtils.getVisibleEdges(state.allEdges, state.nodes, state.visibleEdgeDepth);
+    set({ visibleEdges: allVisible.filter((e) => types.includes(e.type)) });
   },
 
   updateParentBounds: (parentId) => {
@@ -207,7 +220,9 @@ export const createGraphSlice: StateCreator<any, [], [], GraphSlice> = (set, get
 
     // Compute visible edges from the nodes we're about to lay out.
     // Do NOT commit to the store yet — applied atomically with nodes in the .then().
-    const visibleEdges = edgeUtils.getVisibleEdges(state.allEdges, nodesSource, state.visibleEdgeDepth);
+    const allVisible = edgeUtils.getVisibleEdges(state.allEdges, nodesSource, state.visibleEdgeDepth);
+    const filtered = state.filteredEdgeTypes;
+    const visibleEdges = filtered.length === ALL_EDGE_TYPES.length ? allVisible : allVisible.filter((e) => filtered.includes(e.type));
 
     const layoutEngine = new WorkerLayoutEngine(nodesSource, state.layoutSettings);
     if (!silent) {

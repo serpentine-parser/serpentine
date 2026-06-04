@@ -120,6 +120,7 @@ Options:
   --include-standard          Include stdlib nodes (default: off)
   --include-third-party       Include third-party nodes (default: off)
   --state TEXT                Filter by change state: modified,added,deleted
+  --edge-type TEXT            Comma-separated edge types to include: calls,is-a,has-a,references,imports
 ```
 
 ### `serpentine catalog`

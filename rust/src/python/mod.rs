@@ -269,6 +269,7 @@ fn walk_node_python(ctx: &ParseContext, node: Node, events: &mut Vec<Event>) {
     // UseName) fire before the assignment node is created in the PDG.
     let is_assignment = kind == "assignment";
     let is_annotated_assignment = kind == "annotated_assignment";
+    let is_for_statement = matches!(kind, "for_statement" | "async_for_statement");
 
     // Call events are also emitted POST so that nested calls (arguments evaluated
     // before the outer call) fire in the correct execution order.
@@ -339,6 +340,10 @@ fn walk_node_python(ctx: &ParseContext, node: Node, events: &mut Vec<Event>) {
     }
     if is_annotated_assignment {
         emit_annotated_assignment_post_event(ctx, node, events);
+    }
+
+    if is_for_statement {
+        emit_for_loop_post_event(ctx, node, events);
     }
 
     // Emit Call event after children so nested argument calls fire first
@@ -954,6 +959,27 @@ fn emit_identifier_events(ctx: &ParseContext, node: Node, events: &mut Vec<Event
             return;
         }
 
+        // Skip if this identifier is the loop variable of a for-statement (it's a define, not a use)
+        if matches!(parent_kind, "for_statement" | "async_for_statement") {
+            if let Some(left) = parent.child_by_field_name("left") {
+                if left.id() == node.id() {
+                    return;
+                }
+            }
+        }
+        // Same for tuple-unpacked loop vars: `for k, v in ...` — k and v have parent pattern_list
+        if matches!(parent_kind, "pattern_list" | "tuple_pattern") {
+            if let Some(grandparent) = parent.parent() {
+                if matches!(grandparent.kind(), "for_statement" | "async_for_statement") {
+                    if let Some(left) = grandparent.child_by_field_name("left") {
+                        if left.id() == parent.id() {
+                            return;
+                        }
+                    }
+                }
+            }
+        }
+
         // Otherwise, this is a use
         let name = get_node_text(ctx, node);
         events.push(Event::use_name(name, node, ctx.file_path));
@@ -1510,6 +1536,51 @@ fn emit_lambda_events(ctx: &ParseContext, node: Node, events: &mut Vec<Event>) {
 }
 
 /// Emit events for augmented assignments (+=, -=, etc.)
+fn emit_for_loop_post_event(ctx: &ParseContext, node: Node, events: &mut Vec<Event>) {
+    let Some(right_node) = node.child_by_field_name("right") else {
+        return;
+    };
+    let Some(left_node) = node.child_by_field_name("left") else {
+        return;
+    };
+
+    let value = get_node_text(ctx, right_node);
+    let value_type = classify_value_type(right_node.kind());
+
+    match left_node.kind() {
+        "identifier" => {
+            let name = get_node_text(ctx, left_node);
+            let qualname = build_qualname(ctx, node, &name);
+            events.push(Event::assignment(
+                name,
+                qualname,
+                value,
+                value_type,
+                node,
+                ctx.file_path,
+            ));
+        }
+        "pattern_list" | "tuple_pattern" => {
+            let mut cursor = left_node.walk();
+            for child in left_node.children(&mut cursor) {
+                if child.kind() == "identifier" {
+                    let name = get_node_text(ctx, child);
+                    let qualname = build_qualname(ctx, node, &name);
+                    events.push(Event::assignment(
+                        name,
+                        qualname,
+                        value.clone(),
+                        value_type,
+                        child,
+                        ctx.file_path,
+                    ));
+                }
+            }
+        }
+        _ => {}
+    }
+}
+
 fn emit_augmented_assignment_events(ctx: &ParseContext, node: Node, events: &mut Vec<Event>) {
     if let Some(left_node) = node.child_by_field_name("left") {
         if left_node.kind() == "identifier" {
