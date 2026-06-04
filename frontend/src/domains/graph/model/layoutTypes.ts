@@ -5,10 +5,15 @@ export type NodePersistState = {
   pinnedY?: number;
 };
 
+export type EdgeType = "calls" | "is-a" | "has-a" | "references" | "imports";
+
+export const ALL_EDGE_TYPES: EdgeType[] = ["calls", "is-a", "has-a", "references", "imports"];
+
 export type DisplaySettings = {
   includeThirdPartyPackages: boolean;
   includeStandardPackages: boolean;
   visibleEdgeDepth: number;
+  filteredEdgeTypes: EdgeType[];
   selectorQuery?: string;
   selectorExclude?: string;
 };

@@ -80,6 +80,8 @@ export default function GraphPage() {
   const setIncludeThirdPartyPackages = useGraphStore((s) => s.setIncludeThirdPartyPackages);
   const visibleEdgeDepth = useGraphStore((s) => s.visibleEdgeDepth);
   const setVisibleEdgeDepth = useGraphStore((s) => s.setVisibleEdgeDepth);
+  const filteredEdgeTypes = useGraphStore((s) => s.filteredEdgeTypes);
+  const setFilteredEdgeTypes = useGraphStore((s) => s.setFilteredEdgeTypes);
 
   // Local UI state
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
@@ -221,6 +223,8 @@ export default function GraphPage() {
                 setIncludeThirdPartyPackages={setIncludeThirdPartyPackages}
                 visibleEdgeDepth={visibleEdgeDepth}
                 setVisibleEdgeDepth={setVisibleEdgeDepth}
+                filteredEdgeTypes={filteredEdgeTypes}
+                setFilteredEdgeTypes={setFilteredEdgeTypes}
                 selectorState={selectorState}
                 setStateFilter={setStateFilter}
                 onExportJson={handleExportJson}
