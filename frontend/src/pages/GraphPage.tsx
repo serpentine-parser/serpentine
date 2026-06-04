@@ -49,6 +49,7 @@ export default function GraphPage() {
   const flipLayoutDirection = useGraphStore((s) => s.flipLayoutDirection);
   const setLayoutSettings = useGraphStore((s) => s.setLayoutSettings);
   const exportPng = useGraphStore((s) => s.exportPng);
+  const exportMermaid = useGraphStore((s) => s.exportMermaid);
   const sidebarExpansionSignal = useGraphStore((s) => s.sidebarExpansionSignal);
   const setSidebarExpansionSignal = useGraphStore((s) => s.setSidebarExpansionSignal);
 
@@ -208,6 +209,7 @@ export default function GraphPage() {
                 setExcludeQuery={setExcludeQuery}
                 executeSearch={executeSearch}
                 exportPng={exportPng}
+                exportMermaid={exportMermaid}
                 nodes={nodes}
                 catalogNodes={catalogNodes}
                 pdgVisibleEdgeTypes={pdgVisibleEdgeTypes}
