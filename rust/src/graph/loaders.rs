@@ -963,7 +963,12 @@ impl GraphBuilder {
                     // For method calls on local variables (`obj.method(arg)`), emit
                     // `obj --references--> arg` for each local-variable argument.
                     // This captures the data-flow dependency: obj "uses" its arguments.
-                    if caller != scope && callee_text.contains('.') {
+                    // Guard: only fire when the receiver (`caller`) is a local variable in
+                    // the current scope — i.e. its qualname starts with the scope prefix.
+                    // Without this, `ClassName.static_method(arg)` from another module
+                    // falsely emits `ClassName --references--> arg`.
+                    let scope_prefix = format!("{}.", scope);
+                    if caller != scope && callee_text.contains('.') && caller.starts_with(&scope_prefix) {
                         let call_args: Vec<String> = target_obj
                             .get("arguments")
                             .and_then(|a| a.as_array())
@@ -973,7 +978,6 @@ impl GraphBuilder {
                                     .collect()
                             })
                             .unwrap_or_default();
-                        let scope_prefix = format!("{}.", scope);
                         for arg_text in &call_args {
                             let idents: Vec<String> =
                                 if arg_text.chars().all(|c| c.is_alphanumeric() || c == '_') {

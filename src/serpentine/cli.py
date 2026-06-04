@@ -229,6 +229,13 @@ def serve(
     help="Comma-separated change states to include: modified,added,deleted",
 )
 @click.option(
+    "--edge-type",
+    "edge_types",
+    type=str,
+    default=None,
+    help="Comma-separated edge types to include: calls,is-a,has-a,references,imports",
+)
+@click.option(
     "--format",
     "fmt",
     type=click.Choice(["json", "text"]),
@@ -258,6 +265,7 @@ def analyze(
     no_cfg: bool,
     edges_only: bool,
     state: str | None,
+    edge_types: str | None,
     fmt: str,
     source: bool,
     include_assignments: bool,
@@ -272,6 +280,7 @@ def analyze(
         serpentine analyze --select "+*.AuthService" --source     # Include upstream dependencies
         serpentine analyze --format json --pretty                 # Full graph as pretty JSON
         serpentine analyze --format json --select "auth*" --no-cfg --pretty
+        serpentine analyze --edge-type calls,is-a                 # Only call and inheritance edges
     """
     project_path = Path(path).resolve()
     state_manager = GraphStateManager(project_path)
@@ -298,6 +307,13 @@ def analyze(
     if state:
         states = {s.strip() for s in state.split(",") if s.strip()}
         graph_data = filter_by_state(graph_data, states)
+
+    # Apply edge type filter
+    if edge_types:
+        allowed = {t.strip() for t in edge_types.split(",") if t.strip()}
+        graph_data["edges"] = [
+            e for e in graph_data.get("edges", []) if e.get("type") in allowed
+        ]
 
     # Strip cfg fields if requested
     if no_cfg:
@@ -616,10 +632,9 @@ def _detect_harnesses(project_path: Path) -> list[str]:
         detected.append("claude")
     if (project_path / ".cursor").is_dir():
         detected.append("cursor")
-    if (
-        (project_path / ".github" / "copilot-instructions.md").exists()
-        or (project_path / ".vscode").is_dir()
-    ):
+    if (project_path / ".github" / "copilot-instructions.md").exists() or (
+        project_path / ".vscode"
+    ).is_dir():
         detected.append("copilot")
     if (project_path / "AGENTS.md").exists():
         detected.append("codex")
@@ -646,7 +661,10 @@ def _init_claude(project_path: Path) -> list[tuple[str, str]]:
                 skill_content = bundled.read_text(encoding="utf-8")
             except FileNotFoundError:
                 results.append(
-                    ("✗", f"{rel} — skill not found in package, try reinstalling serpentine")
+                    (
+                        "✗",
+                        f"{rel} — skill not found in package, try reinstalling serpentine",
+                    )
                 )
                 continue
             try:
@@ -681,9 +699,15 @@ def _init_cursor(project_path: Path) -> list[tuple[str, str]]:
     if rule_path.exists():
         return [("⚠", f"{rel} — already exists, skipped")]
     try:
-        content = _res_files("serpentine.skills").joinpath("cursor-rules.md").read_text(encoding="utf-8")
+        content = (
+            _res_files("serpentine.skills")
+            .joinpath("cursor-rules.md")
+            .read_text(encoding="utf-8")
+        )
     except FileNotFoundError:
-        return [("✗", f"{rel} — content not found in package, try reinstalling serpentine")]
+        return [
+            ("✗", f"{rel} — content not found in package, try reinstalling serpentine")
+        ]
     try:
         rule_path.parent.mkdir(parents=True, exist_ok=True)
         rule_path.write_text(content)
@@ -696,9 +720,15 @@ def _init_copilot(project_path: Path) -> list[tuple[str, str]]:
     instructions_path = project_path / ".github" / "copilot-instructions.md"
     rel = str(instructions_path.relative_to(project_path))
     try:
-        section = _res_files("serpentine.skills").joinpath("copilot-instructions.md").read_text(encoding="utf-8")
+        section = (
+            _res_files("serpentine.skills")
+            .joinpath("copilot-instructions.md")
+            .read_text(encoding="utf-8")
+        )
     except FileNotFoundError:
-        return [("✗", f"{rel} — content not found in package, try reinstalling serpentine")]
+        return [
+            ("✗", f"{rel} — content not found in package, try reinstalling serpentine")
+        ]
     try:
         if instructions_path.exists():
             content = instructions_path.read_text()
@@ -717,14 +747,28 @@ def _init_copilot(project_path: Path) -> list[tuple[str, str]]:
 def _init_agents_md(project_path: Path, label: str) -> list[tuple[str, str]]:
     agents_path = project_path / "AGENTS.md"
     try:
-        section = _res_files("serpentine.skills").joinpath("agents-md.md").read_text(encoding="utf-8")
+        section = (
+            _res_files("serpentine.skills")
+            .joinpath("agents-md.md")
+            .read_text(encoding="utf-8")
+        )
     except FileNotFoundError:
-        return [("✗", f"AGENTS.md — content not found in package, try reinstalling serpentine")]
+        return [
+            (
+                "✗",
+                "AGENTS.md — content not found in package, try reinstalling serpentine",
+            )
+        ]
     try:
         if agents_path.exists():
             content = agents_path.read_text()
             if "## Serpentine" in content:
-                return [("⚠", f"AGENTS.md — serpentine section already present (skipped for {label})")]
+                return [
+                    (
+                        "⚠",
+                        f"AGENTS.md — serpentine section already present (skipped for {label})",
+                    )
+                ]
             sep = "" if content.endswith("\n") else "\n"
             agents_path.write_text(f"{content}{sep}\n{section}")
             return [("✓", f"AGENTS.md updated (for {label})")]
