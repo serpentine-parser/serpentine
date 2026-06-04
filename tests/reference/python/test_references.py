@@ -247,3 +247,50 @@ def test_method_call_receiver_arg_reference():
     """)
     edges = analyze_sources([("/fixture/mymod.py", src)])
     assert_has_edge(edges, "mymod.foo.obj", "mymod.foo.data", "references")
+
+
+def test_for_loop_simple_iterable_reference():
+    """for x in items — loop var references iterable."""
+    mymod = dedent("""\
+        items = [1, 2, 3]
+        for x in items:
+            pass
+    """)
+    edges = analyze_sources([("/fixture/mymod.py", mymod)])
+    assert_has_edge(edges, "mymod.x", "mymod.items", "references")
+
+
+def test_for_loop_call_iterable_reference():
+    """for x in get_items() — loop var calls the iterable function."""
+    mymod = dedent("""\
+        def get_items():
+            return []
+        for x in get_items():
+            pass
+    """)
+    edges = analyze_sources([("/fixture/mymod.py", mymod)])
+    assert_has_edge(edges, "mymod.x", "mymod.get_items", "calls")
+
+
+def test_for_loop_tuple_unpack_reference():
+    """for k, v in mapping — both vars reference iterable."""
+    mymod = dedent("""\
+        mapping = {}
+        for k, v in mapping:
+            pass
+    """)
+    edges = analyze_sources([("/fixture/mymod.py", mymod)])
+    assert_has_edge(edges, "mymod.k", "mymod.mapping", "references")
+    assert_has_edge(edges, "mymod.v", "mymod.mapping", "references")
+
+
+def test_async_for_loop_reference():
+    """async for x in stream — same edge as regular for."""
+    mymod = dedent("""\
+        stream = []
+        async def run():
+            async for x in stream:
+                pass
+    """)
+    edges = analyze_sources([("/fixture/mymod.py", mymod)])
+    assert_has_edge(edges, "mymod.run.x", "mymod.stream", "references")

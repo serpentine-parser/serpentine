@@ -8,6 +8,8 @@ import {
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { Node } from "@domains/graph/model/types";
 import type { CfgEdgeData } from "@domains/graph/model/types";
+import type { EdgeType } from "@domains/graph/model/layoutTypes";
+import { ALL_EDGE_TYPES } from "@domains/graph/model/layoutTypes";
 
 interface SearchBarProps {
   searchQuery: string;
@@ -27,6 +29,8 @@ interface SearchBarProps {
   setIncludeThirdPartyPackages: (v: boolean) => void;
   visibleEdgeDepth: number;
   setVisibleEdgeDepth: (v: number) => void;
+  filteredEdgeTypes: EdgeType[];
+  setFilteredEdgeTypes: (types: EdgeType[]) => void;
   selectorState: string;
   setStateFilter: (state: string) => void;
   onExportJson: () => void;
@@ -50,6 +54,8 @@ export function SearchBar({
   setIncludeThirdPartyPackages,
   visibleEdgeDepth,
   setVisibleEdgeDepth,
+  filteredEdgeTypes,
+  setFilteredEdgeTypes,
   selectorState,
   setStateFilter,
   onExportJson,
@@ -678,6 +684,35 @@ export function SearchBar({
                       {visibleEdgeDepth === Infinity
                         ? "All edges (∞)"
                         : `Depth ${visibleEdgeDepth}`}
+                    </div>
+                  </div>
+
+                  <div className="mb-3">
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">
+                      Edge Types
+                    </label>
+                    <div className="flex flex-wrap gap-1.5">
+                      {ALL_EDGE_TYPES.map((type) => {
+                        const active = filteredEdgeTypes.includes(type);
+                        return (
+                          <button
+                            key={type}
+                            onClick={() => {
+                              const next = active
+                                ? filteredEdgeTypes.filter((t) => t !== type)
+                                : [...filteredEdgeTypes, type];
+                              setFilteredEdgeTypes(next);
+                            }}
+                            className={`px-2 py-0.5 rounded text-xs border transition-colors ${
+                              active
+                                ? "bg-emerald-100 dark:bg-emerald-900/40 border-emerald-400 dark:border-emerald-600 text-emerald-800 dark:text-emerald-300"
+                                : "bg-white dark:bg-slate-700 border-gray-200 dark:border-slate-600 text-gray-400 dark:text-gray-500"
+                            }`}
+                          >
+                            {type}
+                          </button>
+                        );
+                      })}
                     </div>
                   </div>
 
