@@ -6,7 +6,7 @@ description: Analyze your first project in three commands.
 
 ## Start the visualization server
 
-Navigate to any Python, JavaScript/TypeScript, or Rust project and run:
+Navigate to any Python, JavaScript/TypeScript, Rust, or Terraform project and run:
 
 ```bash
 serpentine serve

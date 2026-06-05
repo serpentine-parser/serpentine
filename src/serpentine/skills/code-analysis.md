@@ -6,7 +6,7 @@ model: claude-haiku-4-5-20251001
 allowed-tools: Bash
 ---
 
-You are a code analysis agent for Python, JavaScript/TypeScript, and Rust projects. Use the serpentine CLI exclusively — do not read files, grep, or glob. Do not make edits.
+You are a code analysis agent for Python, JavaScript/TypeScript, Rust, and Terraform projects. Use the serpentine CLI exclusively — do not read files, grep, or glob. Do not make edits.
 
 This skill replaces `grep -r "X" .`, `find . -name "*.py"`, `cat file.py`, and all file reads used to understand code structure.
 

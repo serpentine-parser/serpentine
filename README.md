@@ -8,13 +8,13 @@ See every reference between every named entity in your codebase — functions, c
 
 ![Serpentine UI](docs/screenshot.png)
 
-Serpentine builds a **code reference graph** for Python, JavaScript/TypeScript, and Rust projects. A code reference is when one named entity mentions another by name — a function call, a type annotation, an assignment, an inheritance declaration. Serpentine resolves each reference through the language's scoping rules down to the exact definition it points to, then visualizes the result as an interactive graph that updates in real time as you edit.
+Serpentine builds a **code reference graph** for Python, JavaScript/TypeScript, Rust, and Terraform projects. A code reference is when one named entity mentions another by name — a function call, a type annotation, an assignment, an inheritance declaration. Serpentine resolves each reference through the language's scoping rules down to the exact definition it points to, then visualizes the result as an interactive graph that updates in real time as you edit.
 
 ---
 
 ## Features
 
-- **Multi-language**: Python, JavaScript, TypeScript, and Rust
+- **Multi-language**: Python, JavaScript, TypeScript, Rust, and Terraform
 - **Full reference resolution**: Traces calls, type annotations, assignments, and inheritance — not just import edges
 - **Interactive graph**: Expandable nodes, search, pan/zoom, collapsible modules
 - **Real-time updates**: File watcher pushes changes via WebSocket
@@ -71,7 +71,7 @@ This installs the `serpentine` CLI globally via `uv tool`, which you will need t
 
 ## Quick Start
 
-Navigate to any Python, JavaScript/TypeScript, or Rust project and run:
+Navigate to any Python, JavaScript/TypeScript, Rust, or Terraform project and run:
 
 ```bash
 serpentine serve
@@ -314,7 +314,7 @@ Serpentine looks for `.serpentine.yml` or `serpentine.yml` in the project root. 
 ```yaml
 analysis:
   # File extensions to analyze (default: all supported)
-  extensions: [".py", ".js", ".jsx", ".ts", ".tsx", ".rs"]
+  extensions: [".py", ".js", ".jsx", ".ts", ".tsx", ".rs", ".tf"]
 
   # Directories to skip
   exclude_dirs:
@@ -395,6 +395,7 @@ serpentine/
 │       ├── python/             # Python parser
 │       ├── javascript/         # JS/TS parser
 │       ├── rust_lang/          # Rust parser
+│       ├── terraform/          # Terraform/HCL parser
 │       ├── subscribers/        # Event processors (imports, calls, defs)
 │       └── graph/              # Graph builder and resolvers
 ├── src/serpentine/             # Python package
