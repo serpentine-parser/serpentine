@@ -478,6 +478,18 @@ impl GraphBuilder {
 
             let resolved_module = source_module.to_string();
 
+            // Only emit imports edges for project-local targets. Terraform (.tf) files
+            // are exempt: their source paths are already normalized from "./" prefixes
+            // by normalize_source_path, so all surviving sources are local-by-intent
+            // even when the target file is not in the analyzed set.
+            let is_terraform = file.ends_with(".tf");
+            if !is_terraform {
+                use crate::graph::Origin;
+                if self.classify_module(&resolved_module) != Origin::Local {
+                    continue;
+                }
+            }
+
             // Determine what to create an edge to
             if imported_names.is_empty() {
                 // `import foo` or `import foo.bar` - edge to the module itself

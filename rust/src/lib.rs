@@ -14,6 +14,7 @@ mod message_bus;
 mod python;
 mod rust_lang;
 mod subscribers;
+mod terraform;
 
 use crate::javascript::{parse as parse_javascript, JsLang};
 use crate::javascript::config::JsConfig;
@@ -22,6 +23,8 @@ use crate::graph::GraphBuilder;
 use crate::python::parse as parse_python;
 use crate::python::config::PythonConfig;
 use crate::rust_lang::parse as parse_rust;
+use crate::terraform::parse as parse_terraform;
+use crate::terraform::config::TerraformConfig;
 use crate::subscribers::{
     DecoratorsSubscriberFactory, PdgSubscriberFactory, CodeSnippetSubscriberFactory,
     DefinitionsSubscriberFactory, EventCounterSubscriberFactory, ImportsSubscriberFactory,
@@ -39,10 +42,11 @@ use pyo3::types::{PyDict, PyList};
 
 use tree_sitter::{Language, Parser, Tree};
 
-use tree_sitter_javascript::language as javascript_language;
-use tree_sitter_python::language as python_language;
-use tree_sitter_rust::language as rust_language;
-use tree_sitter_typescript::{language_tsx, language_typescript};
+use tree_sitter_javascript::LANGUAGE as JAVASCRIPT_LANGUAGE;
+use tree_sitter_python::LANGUAGE as PYTHON_LANGUAGE;
+use tree_sitter_rust::LANGUAGE as RUST_LANGUAGE;
+use tree_sitter_typescript::{LANGUAGE_TSX, LANGUAGE_TYPESCRIPT};
+
 
 // ============================================================================
 // Language Support
@@ -60,6 +64,8 @@ enum Lang {
     Tsx,
     /// Rust (.rs)
     Rust,
+    /// Terraform/HCL (.tf)
+    Terraform,
 }
 
 impl Lang {
@@ -71,6 +77,7 @@ impl Lang {
             Some("ts") => Some(Lang::TypeScript),
             Some("tsx") => Some(Lang::Tsx),
             Some("rs") => Some(Lang::Rust),
+            Some("tf") => Some(Lang::Terraform),
             _ => None,
         }
     }
@@ -78,11 +85,12 @@ impl Lang {
     /// Get the tree-sitter language for parsing.
     fn language(&self) -> Language {
         match self {
-            Lang::Python => python_language(),
-            Lang::JavaScript => javascript_language(),
-            Lang::TypeScript => language_typescript(),
-            Lang::Tsx => language_tsx(),
-            Lang::Rust => rust_language(),
+            Lang::Python => PYTHON_LANGUAGE.into(),
+            Lang::JavaScript => JAVASCRIPT_LANGUAGE.into(),
+            Lang::TypeScript => LANGUAGE_TYPESCRIPT.into(),
+            Lang::Tsx => LANGUAGE_TSX.into(),
+            Lang::Rust => RUST_LANGUAGE.into(),
+            Lang::Terraform => tree_sitter_hcl::LANGUAGE.into(),
         }
     }
 
@@ -92,7 +100,7 @@ impl Lang {
             Lang::JavaScript => Some(JsLang::JavaScript),
             Lang::TypeScript => Some(JsLang::TypeScript),
             Lang::Tsx => Some(JsLang::Tsx),
-            Lang::Python | Lang::Rust => None,
+            Lang::Python | Lang::Rust | Lang::Terraform => None,
         }
     }
 }
@@ -117,7 +125,7 @@ struct FileEntry {
 impl FileEntry {
     fn new(lang: Lang, source: String, file_path: String) -> Self {
         let mut parser = Parser::new();
-        parser.set_language(lang.language()).unwrap();
+        parser.set_language(&lang.language()).unwrap();
         let source_hash = Self::compute_hash(&source);
         let tree = parser.parse(&source, None);
 
@@ -177,6 +185,7 @@ impl FileEntry {
                 parse_javascript(&self.source, &self.tree, &self.file_path, js_lang)
             }
             Lang::Rust => parse_rust(&self.source, &self.tree, &self.file_path),
+            Lang::Terraform => parse_terraform(&self.source, &self.tree, &self.file_path),
         };
 
         self.cached_results = self.message_bus.publish_events(events)?;
@@ -287,6 +296,7 @@ impl FileManager {
             Box::new(PythonConfig::new()),
             Box::new(JsConfig::new()),
             Box::new(crate::rust_lang::config::RustConfig::new()),
+            Box::new(TerraformConfig::new()),
         ];
 
         // Collect all subscriber data from all files (already cached from parsing)
@@ -322,6 +332,16 @@ impl FileManager {
         }
         for data in all_definitions {
             builder.load_definitions(&data);
+        }
+
+        // Populate local_prefixes from the set of analyzed file paths so that
+        // classify_module can distinguish project-local modules from third-party.
+        for path in self.files.keys() {
+            let module_path = builder.file_to_module(&path.to_string_lossy());
+            let top = module_path.split('.').next().unwrap_or(&module_path).to_string();
+            if !top.is_empty() {
+                builder.local_prefixes.insert(top);
+            }
         }
         for data in all_pdgs {
             builder.load_pdgs(&data);

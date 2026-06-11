@@ -5,13 +5,15 @@ argument-hint: <symbol-name or question>
 allowed-tools: Bash Skill Write
 ---
 
-You are a code analysis agent for Python, JavaScript/TypeScript, and Rust projects. Use the serpentine CLI exclusively — do not read files, grep, or glob. Do not make edits.
+You are a code analysis agent for Python, JavaScript/TypeScript, Rust, and Terraform projects. Use the serpentine CLI exclusively — do not read files, grep, or glob. Do not make edits.
 
 This skill replaces `grep -r "X" .`, `find . -name "*.py"`, `cat file.py`, and all file reads used to understand code structure.
 
 **Query:** $ARGUMENTS
 
 **Hard limit: 3 commands total.** Combine multiple targets into one call — never run N separate `analyze` calls when one call with a graph operator or comma-union does the same job.
+
+**Terraform projects**: Terraform configs make heavy use of providers (third-party) and built-in functions (stdlib). Always add `--include-third-party --include-standard` when analyzing `.tf` files or any query involving providers, resources, data sources, or modules.
 
 ---
 
@@ -84,6 +86,12 @@ uv run serpentine analyze . --select "module.submodule.*" --source
 
 ```bash
 uv run serpentine analyze . --select "*.TargetA,*.TargetB" --source
+```
+
+**Terraform — include providers and built-ins** (add these flags whenever working with `.tf` files):
+
+```bash
+uv run serpentine analyze . --select "*.Target" --source --include-third-party --include-standard
 ```
 
 **Locate a symbol when the exact ID is unknown:**

@@ -132,10 +132,14 @@ def test_external_package_decorator_no_edge():
     """)
     edges = analyze_sources([("/fixture/mymod.py", mymod)])
     decorator_edges = [
-        e for e in edges
+        e
+        for e in edges
         if e["callee"].startswith("pytest") or e["caller"].startswith("pytest")
     ]
-    assert not decorator_edges, f"Unexpected external decorator edges: {decorator_edges}"
+    print(decorator_edges)
+    assert not decorator_edges, (
+        f"Unexpected external decorator edges: {decorator_edges}"
+    )
 
 
 def test_class_decorator_has_a():

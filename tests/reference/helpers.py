@@ -5,14 +5,13 @@ from serpentine import _analyzer
 def analyze_sources(sources: list[tuple[str, str]]) -> list[dict]:
     """
     Run the full analysis pipeline on the given (path, source) pairs.
-    Returns edge list with 'imports' edges filtered out — tests assert
-    only on the four reference types: calls, has-a, references, is-a.
+    Returns the full edge list from the dependency graph.
     """
     fm = _analyzer.FileManager()
     for path, source in sources:
         fm.open_file(path, source)
     graph = json.loads(fm.build_dependency_graph())
-    return [e for e in graph.get("edges", []) if e["type"] != "imports"]
+    return graph.get("edges", [])
 
 
 def assert_has_edge(edges: list[dict], caller: str, callee: str, edge_type: str) -> None:

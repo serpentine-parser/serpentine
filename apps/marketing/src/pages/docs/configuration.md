@@ -24,7 +24,7 @@ This is the default configuration — equivalent to running with no config file 
 ```yaml
 analysis:
   # File extensions to analyze
-  extensions: [".py", ".js", ".jsx", ".ts", ".tsx", ".rs"]
+  extensions: [".py", ".js", ".jsx", ".ts", ".tsx", ".rs", ".tf"]
 
   # Directories to skip (matched by name, not path)
   exclude_dirs:
@@ -57,7 +57,7 @@ List of file extensions to include in analysis. Default: all supported extension
 
 ```yaml
 # Default
-extensions: [".py", ".js", ".jsx", ".ts", ".tsx", ".rs"]
+extensions: [".py", ".js", ".jsx", ".ts", ".tsx", ".rs", ".tf"]
 ```
 
 Restrict to a subset if your project mixes languages but you only need one:

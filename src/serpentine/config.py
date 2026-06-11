@@ -6,7 +6,7 @@ in the project root, with sensible defaults if not found.
 
 Configuration schema:
     analysis:
-        extensions: [".py", ".js", ".jsx", ".ts", ".tsx", ".rs"]  # File extensions to analyze
+        extensions: [".py", ".js", ".jsx", ".ts", ".tsx", ".rs", ".tf"]  # File extensions to analyze
         exclude_dirs: [list of directory names]  # Directories to skip
         exclude_patterns: [list of glob patterns] # File patterns to skip
 """
@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 # Default configuration
 DEFAULT_CONFIG = {
     "analysis": {
-        "extensions": [".py", ".js", ".jsx", ".ts", ".tsx", ".rs"],
+        "extensions": [".py", ".js", ".jsx", ".ts", ".tsx", ".rs", ".tf"],
         "exclude_dirs": [
             "__pycache__",
             ".git",
