@@ -22,7 +22,7 @@ Or programmatically:
     app = create_app(state)
 """
 
-__version__ = "0.2.1"
+__version__ = "0.3.1"
 
 from serpentine.server import create_app
 from serpentine.state import GraphStateManager
