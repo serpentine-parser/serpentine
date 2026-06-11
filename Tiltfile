@@ -21,12 +21,12 @@ API_URL = "http://%s:%s" % (API_HOST, API_PORT)
 
 local_resource(
   'frontend-dev',
-  serve_cmd='cd frontend && NEXT_PUBLIC_API_URL=%s npm run dev' % API_URL,
+  serve_cmd='cd frontend && NEXT_PUBLIC_API_URL=%s bun run dev' % API_URL,
   deps=[
     'frontend/src',
     'frontend/public',
     'frontend/package.json',
-    'frontend/package-lock.json',
+    'frontend/bun.lock',
   ],
   labels=['frontend'],
 )
@@ -48,11 +48,12 @@ local_resource(
 # Astro dev server with hot reload
 local_resource(
   'marketing-dev',
-  serve_cmd='cd apps/marketing && npm run dev',
+  serve_cmd='cd apps/marketing && bun run dev',
   deps=[
     'apps/marketing/src',
     'apps/marketing/public',
     'apps/marketing/package.json',
+    'apps/marketing/bun.lock',
   ],
   labels=['frontend'],
 )
