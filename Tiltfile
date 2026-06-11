@@ -44,6 +44,19 @@ local_resource(
   trigger_mode=TRIGGER_MODE_AUTO,
 )
 
+# ── Marketing Site ───────────────────────────────────────────────────────────
+# Astro dev server with hot reload
+local_resource(
+  'marketing-dev',
+  serve_cmd='cd apps/marketing && npm run dev',
+  deps=[
+    'apps/marketing/src',
+    'apps/marketing/public',
+    'apps/marketing/package.json',
+  ],
+  labels=['frontend'],
+)
+
 # ── Commands ──────────────────────────────────────────────────────────────────
 # Manual buttons for convenience
 local_resource(

@@ -18,7 +18,7 @@
     "prismjs": "^1.30.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
-    "vitest": "^3.2.4",
+    "vitest": "^3.2.6",
     "web-worker": "^1.5.0",
     "xstate": "^5.28.0",
     "zustand": "^4.5.2"
@@ -33,6 +33,6 @@
     "playwright": "^1.58.2",
     "tailwindcss": "^4.1.11",
     "typescript": "^5.4.0",
-    "vite": "^5.4.19"
+    "vite": "^6.4.2"
   }
 }
