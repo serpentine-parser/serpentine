@@ -1,6 +1,6 @@
 from textwrap import dedent
 
-from ..helpers import analyze_sources, assert_has_edge, assert_no_edge
+from ..helpers import analyze_sources, assert_has_edge
 
 
 def test_plain_decorator_local_references():
@@ -60,7 +60,11 @@ def test_external_decorator_no_edge():
     """)
     edges = analyze_sources([("/mymod.ts", mymod)])
     decorator_edges = [
-        e for e in edges
+        e
+        for e in edges
         if "Injectable" in e.get("callee", "") or "Injectable" in e.get("caller", "")
     ]
-    assert not decorator_edges, f"Unexpected external decorator edges: {decorator_edges}"
+    print(decorator_edges)
+    assert not decorator_edges, (
+        f"Unexpected external decorator edges: {decorator_edges}"
+    )

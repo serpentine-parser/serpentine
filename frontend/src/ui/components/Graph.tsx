@@ -208,6 +208,64 @@ export function Graph({
       style={{ minWidth: "800px", minHeight: "600px" }}
       onClick={() => clearHighlights()}
     >
+      <defs>
+        <marker id="arrow-default" viewBox="0 -5 10 10" refX="9" refY="0" markerWidth="6" markerHeight="6" orient="auto">
+          <path d="M0,-5L10,0L0,5" className="fill-gray-500 dark:fill-slate-400" />
+        </marker>
+        <marker id="start-circle-default" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="4" markerHeight="4" orient="auto">
+          <circle cx="5" cy="5" r="3" className="fill-gray-500 dark:fill-slate-400" />
+        </marker>
+
+        <marker id="arrow-highlighted" viewBox="0 -5 10 10" refX="9" refY="0" markerWidth="6" markerHeight="6" orient="auto">
+          <path d="M0,-5L10,0L0,5" className="fill-emerald-800 dark:fill-emerald-500" />
+        </marker>
+        <marker id="start-circle-highlighted" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="4" markerHeight="4" orient="auto">
+          <circle cx="5" cy="5" r="3" className="fill-emerald-800 dark:fill-emerald-500" />
+        </marker>
+
+        <marker id="arrow-dimmed" viewBox="0 -5 10 10" refX="9" refY="0" markerWidth="6" markerHeight="6" orient="auto">
+          <path d="M0,-5L10,0L0,5" className="fill-gray-300 dark:fill-slate-600" />
+        </marker>
+        <marker id="start-circle-dimmed" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="4" markerHeight="4" orient="auto">
+          <circle cx="5" cy="5" r="3" className="fill-gray-300 dark:fill-slate-600" />
+        </marker>
+
+        <marker id="arrow-deleted" viewBox="0 -5 10 10" refX="9" refY="0" markerWidth="6" markerHeight="6" orient="auto">
+          <path d="M0,-5L10,0L0,5" fill="#ef4444" />
+        </marker>
+        <marker id="start-circle-deleted" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="4" markerHeight="4" orient="auto">
+          <circle cx="5" cy="5" r="3" fill="#ef4444" />
+        </marker>
+
+        <marker id="arrow-added" viewBox="0 -5 10 10" refX="9" refY="0" markerWidth="6" markerHeight="6" orient="auto">
+          <path d="M0,-5L10,0L0,5" fill="#0ea5e9" />
+        </marker>
+        <marker id="start-circle-added" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="4" markerHeight="4" orient="auto">
+          <circle cx="5" cy="5" r="3" fill="#0ea5e9" />
+        </marker>
+
+        <marker id="edit-arrow-default" viewBox="0 -5 10 10" refX="9" refY="0" markerWidth="6" markerHeight="6" orient="auto">
+          <path d="M0,-5L10,0L0,5" className="fill-slate-500 dark:fill-slate-400" />
+        </marker>
+        <marker id="start-circle-edit-default" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="4" markerHeight="4" orient="auto">
+          <circle cx="5" cy="5" r="3" className="fill-slate-500 dark:fill-slate-400" />
+        </marker>
+
+        <marker id="edit-arrow-highlighted" viewBox="0 -5 10 10" refX="9" refY="0" markerWidth="6" markerHeight="6" orient="auto">
+          <path d="M0,-5L10,0L0,5" className="fill-emerald-700 dark:fill-emerald-500" />
+        </marker>
+        <marker id="start-circle-edit-highlighted" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="4" markerHeight="4" orient="auto">
+          <circle cx="5" cy="5" r="3" className="fill-emerald-700 dark:fill-emerald-500" />
+        </marker>
+
+        <marker id="edit-arrow-dimmed" viewBox="0 -5 10 10" refX="9" refY="0" markerWidth="6" markerHeight="6" orient="auto">
+          <path d="M0,-5L10,0L0,5" className="fill-slate-300 dark:fill-slate-600" />
+        </marker>
+        <marker id="start-circle-edit-dimmed" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="4" markerHeight="4" orient="auto">
+          <circle cx="5" cy="5" r="3" className="fill-slate-300 dark:fill-slate-600" />
+        </marker>
+      </defs>
+
       <g ref={gRef}>
         <rect
           x={bgRect.x}
@@ -261,61 +319,6 @@ export function Graph({
             />
           </filter>
 
-          <marker id="arrow-default" viewBox="0 -5 10 10" refX="9" refY="0" markerWidth="6" markerHeight="6" orient="auto">
-            <path d="M0,-5L10,0L0,5" className="fill-gray-500 dark:fill-slate-400" />
-          </marker>
-          <marker id="start-circle-default" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="4" markerHeight="4" orient="auto">
-            <circle cx="5" cy="5" r="3" className="fill-gray-500 dark:fill-slate-400" />
-          </marker>
-
-          <marker id="arrow-highlighted" viewBox="0 -5 10 10" refX="9" refY="0" markerWidth="6" markerHeight="6" orient="auto">
-            <path d="M0,-5L10,0L0,5" className="fill-emerald-800 dark:fill-emerald-500" />
-          </marker>
-          <marker id="start-circle-highlighted" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="4" markerHeight="4" orient="auto">
-            <circle cx="5" cy="5" r="3" className="fill-emerald-800 dark:fill-emerald-500" />
-          </marker>
-
-          <marker id="arrow-dimmed" viewBox="0 -5 10 10" refX="9" refY="0" markerWidth="6" markerHeight="6" orient="auto">
-            <path d="M0,-5L10,0L0,5" className="fill-gray-300 dark:fill-slate-600" />
-          </marker>
-          <marker id="start-circle-dimmed" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="4" markerHeight="4" orient="auto">
-            <circle cx="5" cy="5" r="3" className="fill-gray-300 dark:fill-slate-600" />
-          </marker>
-
-          <marker id="arrow-deleted" viewBox="0 -5 10 10" refX="9" refY="0" markerWidth="6" markerHeight="6" orient="auto">
-            <path d="M0,-5L10,0L0,5" fill="#ef4444" />
-          </marker>
-          <marker id="start-circle-deleted" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="4" markerHeight="4" orient="auto">
-            <circle cx="5" cy="5" r="3" fill="#ef4444" />
-          </marker>
-
-          <marker id="arrow-added" viewBox="0 -5 10 10" refX="9" refY="0" markerWidth="6" markerHeight="6" orient="auto">
-            <path d="M0,-5L10,0L0,5" fill="#0ea5e9" />
-          </marker>
-          <marker id="start-circle-added" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="4" markerHeight="4" orient="auto">
-            <circle cx="5" cy="5" r="3" fill="#0ea5e9" />
-          </marker>
-
-          <marker id="edit-arrow-default" viewBox="0 -5 10 10" refX="9" refY="0" markerWidth="6" markerHeight="6" orient="auto">
-            <path d="M0,-5L10,0L0,5" className="fill-slate-500 dark:fill-slate-400" />
-          </marker>
-          <marker id="start-circle-edit-default" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="4" markerHeight="4" orient="auto">
-            <circle cx="5" cy="5" r="3" className="fill-slate-500 dark:fill-slate-400" />
-          </marker>
-
-          <marker id="edit-arrow-highlighted" viewBox="0 -5 10 10" refX="9" refY="0" markerWidth="6" markerHeight="6" orient="auto">
-            <path d="M0,-5L10,0L0,5" className="fill-emerald-700 dark:fill-emerald-500" />
-          </marker>
-          <marker id="start-circle-edit-highlighted" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="4" markerHeight="4" orient="auto">
-            <circle cx="5" cy="5" r="3" className="fill-emerald-700 dark:fill-emerald-500" />
-          </marker>
-
-          <marker id="edit-arrow-dimmed" viewBox="0 -5 10 10" refX="9" refY="0" markerWidth="6" markerHeight="6" orient="auto">
-            <path d="M0,-5L10,0L0,5" className="fill-slate-300 dark:fill-slate-600" />
-          </marker>
-          <marker id="start-circle-edit-dimmed" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="4" markerHeight="4" orient="auto">
-            <circle cx="5" cy="5" r="3" className="fill-slate-300 dark:fill-slate-600" />
-          </marker>
         </defs>
 
         <g className="edges">

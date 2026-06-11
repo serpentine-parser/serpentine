@@ -37,6 +37,7 @@ analysis:
     - .ts
     - .tsx
     - .rs
+    - .tf
   exclude_dirs:
     - __pycache__
     - .git

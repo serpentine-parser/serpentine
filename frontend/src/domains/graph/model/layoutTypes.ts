@@ -42,7 +42,7 @@ export const DEFAULT_LAYOUT_SETTINGS: LayoutSettings = {
   edgeNode: 50,
   componentComponent: 20,
   padding: 50,
-  edgeCurvature: 40,
+  edgeCurvature: 30,
   edgeStrokeWidth: 1.2,
 };
 

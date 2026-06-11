@@ -16,7 +16,7 @@ export interface EdgeBezierConfig {
 }
 
 export const EDGE_BEZIER_CONFIG: EdgeBezierConfig = {
-  curvature: 40,
+  curvature: 30,
   strokeWidth: 2,
   arrowSize: 8,
 };
@@ -77,18 +77,21 @@ export function calculateBezierControlPoints(
   target: EdgePoint,
   curvature: number = EDGE_BEZIER_CONFIG.curvature
 ): { c1: { x: number; y: number }; c2: { x: number; y: number } } {
+  const dx = target.x - source.x;
+  const dy = target.y - source.y;
+  const dist = Math.hypot(dx, dy);
+  const offset = (curvature / 100) * (dist / 2);
+
   const c1 = { ...source };
-  const c2 = { ...target };
+  if (source.side === "left") c1.x -= offset;
+  if (source.side === "right") c1.x += offset;
+  if (source.side === "top") c1.y -= offset;
+  if (source.side === "bottom") c1.y += offset;
 
-  const adjustControlPoint = (pt: { x: number; y: number }, side: string) => {
-    if (side === "left") pt.x -= curvature;
-    if (side === "right") pt.x += curvature;
-    if (side === "top") pt.y -= curvature;
-    if (side === "bottom") pt.y += curvature;
-  };
-
-  adjustControlPoint(c1, source.side);
-  adjustControlPoint(c2, target.side);
+  // Approach target from the source direction so the arrow rotates with the edge
+  const c2 = dist > 0
+    ? { x: target.x - (dx / dist) * offset, y: target.y - (dy / dist) * offset }
+    : { ...target };
 
   return { c1, c2 };
 }

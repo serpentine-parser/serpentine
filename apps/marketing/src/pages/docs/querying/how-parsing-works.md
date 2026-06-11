@@ -122,6 +122,7 @@ If a reference you expect to see is missing, it is most likely one of these case
 | JavaScript | `.js`, `.jsx` |
 | TypeScript | `.ts`, `.tsx` |
 | Rust | `.rs` |
+| Terraform | `.tf` |
 
 For a deeper look at the architecture decisions behind the parser — why tree-sitter, how the subscriber pipeline came together, and the tradeoffs of doing this in Rust — see [How We Built a Polyglot Code Graph with Rust and Tree-Sitter](/blog/how-we-built-a-polyglot-code-graph-with-rust-and-tree-sitter).
 
