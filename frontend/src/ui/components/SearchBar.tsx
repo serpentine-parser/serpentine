@@ -18,6 +18,7 @@ interface SearchBarProps {
   setExcludeQuery: (q: string) => void;
   executeSearch: () => void;
   exportPng: () => Promise<void>;
+  exportMermaid: () => Promise<void>;
   nodes: Node[];
   catalogNodes: Node[];
   pdgVisibleEdgeTypes: Set<string>;
@@ -43,6 +44,7 @@ export function SearchBar({
   setExcludeQuery,
   executeSearch,
   exportPng,
+  exportMermaid,
   nodes,
   catalogNodes,
   pdgVisibleEdgeTypes,
@@ -68,6 +70,7 @@ export function SearchBar({
   const settingsRef = useRef<HTMLDivElement>(null);
 
   const [isSearching, setIsSearching] = useState(false);
+  const [mermaidCopied, setMermaidCopied] = useState(false);
 
   const [selectedIndex, setSelectedIndex] = useState(-1);
   const [excludeSelectedIndex, setExcludeSelectedIndex] = useState(-1);
@@ -746,6 +749,19 @@ export function SearchBar({
                       />
                       <span className="text-sm text-gray-900 dark:text-gray-100">
                         Download Image
+                      </span>
+                    </button>
+
+                  <button
+                      onClick={() => {
+                        exportMermaid()
+                          .then(() => { setMermaidCopied(true); setTimeout(() => setMermaidCopied(false), 2000); })
+                          .catch((err) => console.error('Failed to copy Mermaid:', err));
+                      }}
+                      className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded bg-white dark:bg-slate-700 border border-gray-200 dark:border-slate-600 hover:bg-gray-50 dark:hover:bg-slate-600"
+                    >
+                      <span className="text-sm text-gray-900 dark:text-gray-100">
+                        {mermaidCopied ? 'Copied!' : 'Copy Mermaid'}
                       </span>
                     </button>
                 </div>

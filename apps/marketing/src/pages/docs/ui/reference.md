@@ -251,6 +251,7 @@ The selection persists across reloads via localStorage.
 |--------|--------|
 | **Export JSON** | Downloads the current graph data as a JSON file |
 | **Download Image** | Exports the canvas as a PNG image |
+| **Copy Mermaid** | Copies the visible graph as a [Mermaid](https://mermaid.js.org/) `graph TD` diagram to the clipboard. Only visible nodes and edges are included; collapsed subtrees are represented as single nodes. Button label changes to **Copied!** briefly to confirm. |
 
 ---
 

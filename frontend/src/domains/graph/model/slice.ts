@@ -60,6 +60,7 @@ export type GraphSlice = {
   setZoomBounds: (bounds: ZoomBounds) => void;
   setSvgRef: (ref: React.RefObject<SVGSVGElement> | null) => void;
   exportPng: () => Promise<void>;
+  exportMermaid: () => Promise<void>;
   setLayoutSettings: (patch: Partial<LayoutSettings>) => void;
   flipLayoutDirection: () => void;
   wsSend: ((msg: object) => void) | null;
@@ -378,6 +379,13 @@ export const createGraphSlice: StateCreator<any, [], [], GraphSlice> = (set, get
     } catch (error) {
       console.error("Failed to export PNG:", error);
     }
+  },
+
+  exportMermaid: async () => {
+    const state = get();
+    const { buildMermaidDiagram } = await import('@ui/lib/mermaidExport');
+    const diagram = buildMermaidDiagram(state.nodes, state.visibleEdges);
+    await navigator.clipboard.writeText(diagram);
   },
 
   setLayoutSettings: (patch: Partial<LayoutSettings>) => {
