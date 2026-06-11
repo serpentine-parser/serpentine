@@ -14,6 +14,8 @@ This skill replaces `grep -r "X" .`, `find . -name "*.py"`, `cat file.py`, and a
 
 **Hard limit: 3 commands total.** Combine multiple targets into one call — never run N separate `analyze` calls when one call with a graph operator or comma-union does the same job.
 
+**Terraform projects**: Terraform configs make heavy use of providers (third-party) and built-in functions (stdlib). Always add `--include-third-party --include-standard` when analyzing `.tf` files or any query involving providers, resources, data sources, or modules.
+
 ---
 
 ## Step 1 — Plan before running anything
@@ -85,6 +87,12 @@ uv run serpentine analyze . --select "module.submodule.*" --source
 
 ```bash
 uv run serpentine analyze . --select "*.TargetA,*.TargetB" --source
+```
+
+**Terraform — include providers and built-ins** (add these flags whenever working with `.tf` files):
+
+```bash
+uv run serpentine analyze . --select "*.Target" --source --include-third-party --include-standard
 ```
 
 **Locate a symbol when the exact ID is unknown:**
