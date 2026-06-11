@@ -18,7 +18,7 @@ const posts = (await getCollection('blog')).sort(
     <ul class="post-list">
       {posts.map((post) => (
         <li class="post-item">
-          <a href={`/blog/${post.slug}`} class="post-link">
+          <a href={`/blog/${post.id.replace(/\.[^.]+$/, '')}`} class="post-link">
             <div class="post-date">
               {post.data.pubDate.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}
             </div>

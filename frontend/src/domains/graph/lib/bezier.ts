@@ -77,9 +77,7 @@ export function calculateBezierControlPoints(
   target: EdgePoint,
   curvature: number = EDGE_BEZIER_CONFIG.curvature
 ): { c1: { x: number; y: number }; c2: { x: number; y: number } } {
-  const dx = target.x - source.x;
-  const dy = target.y - source.y;
-  const dist = Math.hypot(dx, dy);
+  const dist = Math.hypot(target.x - source.x, target.y - source.y);
   const offset = (curvature / 100) * (dist / 2);
 
   const c1 = { ...source };
@@ -88,12 +86,27 @@ export function calculateBezierControlPoints(
   if (source.side === "top") c1.y -= offset;
   if (source.side === "bottom") c1.y += offset;
 
-  // Approach target from the source direction so the arrow rotates with the edge
-  const c2 = dist > 0
-    ? { x: target.x - (dx / dist) * offset, y: target.y - (dy / dist) * offset }
-    : { ...target };
+  const c2 = { ...target };
+  if (target.side === "left") c2.x -= offset;
+  if (target.side === "right") c2.x += offset;
+  if (target.side === "top") c2.y -= offset;
+  if (target.side === "bottom") c2.y += offset;
 
   return { c1, c2 };
+}
+
+function evaluateCubicBezier(
+  p0: { x: number; y: number },
+  p1: { x: number; y: number },
+  p2: { x: number; y: number },
+  p3: { x: number; y: number },
+  t: number
+): { x: number; y: number } {
+  const mt = 1 - t;
+  return {
+    x: mt * mt * mt * p0.x + 3 * mt * mt * t * p1.x + 3 * mt * t * t * p2.x + t * t * t * p3.x,
+    y: mt * mt * mt * p0.y + 3 * mt * mt * t * p1.y + 3 * mt * t * t * p2.y + t * t * t * p3.y,
+  };
 }
 
 export function generateBezierSVGPath(
@@ -127,5 +140,12 @@ export function generateBezierSVGPath(
   );
   const { c1, c2 } = calculateBezierControlPoints(source, target, curvature);
 
-  return `M${source.x},${source.y} C${c1.x},${c1.y} ${c2.x},${c2.y} ${target.x},${target.y}`;
+  const p0 = { x: source.x, y: source.y };
+  const p3 = { x: target.x, y: target.y };
+
+  // End the bezier curve slightly before the target so markerEnd orients to the
+  // natural curve tangent rather than the forced side-normal entry direction.
+  const nearTarget = evaluateCubicBezier(p0, c1, c2, p3, 0.95);
+
+  return `M${p0.x},${p0.y} C${c1.x},${c1.y} ${c2.x},${c2.y} ${nearTarget.x},${nearTarget.y} L${p3.x},${p3.y}`;
 }
