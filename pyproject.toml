@@ -1,14 +1,14 @@
 [project]
 name = "serpentine-parser"
-version = "0.2.1"
-description = "Fast dependency graph analysis and visualization for Python, JavaScript/TypeScript, and Rust projects"
+version = "0.3.0"
+description = "Fast dependency graph analysis and visualization for Python, JavaScript/TypeScript, Rust, and Terraform projects"
 readme = "README.md"
 requires-python = ">=3.10"
 license = { file = "LICENSE" }
 authors = [
     { name = "Christopher Garretty" },
 ]
-keywords = ["dependency-graph", "visualization", "static-analysis", "python", "javascript", "rust", "tree-sitter"]
+keywords = ["dependency-graph", "visualization", "static-analysis", "python", "javascript", "rust", "terraform", "tree-sitter"]
 classifiers = [
     "Development Status :: 4 - Beta",
     "Environment :: Console",
