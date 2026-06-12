@@ -17,5 +17,5 @@ tree-sitter-rust = { version = "0.24", default-features = false }
 tree-sitter-hcl = "1.1.0"
 pyo3 = { version = "0.28", features = ["extension-module", "abi3-py310"] }
 rayon = "1.10"
-serde = { version = "1.0", features = ["derive"] }
+serde = { version = "1.0", features = ["derive", "rc"] }
 serde_json = "1.0"

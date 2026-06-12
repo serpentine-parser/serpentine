@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use super::{GraphBuilder, ObjectType};
 
 impl GraphBuilder {
@@ -22,15 +24,17 @@ impl GraphBuilder {
             .collect();
 
         for qualname in qualnames {
-            let pdg_json = match self.definitions.get(&qualname).and_then(|n| n.pdg.clone()) {
+            // Take the Arc out so refcount stays 1 — try_unwrap can then avoid a clone.
+            let pdg_arc = match self.definitions.get_mut(&qualname).and_then(|n| n.pdg.take()) {
                 Some(p) => p,
                 None => continue,
             };
+            let pdg_owned = Arc::try_unwrap(pdg_arc).unwrap_or_else(|arc| (*arc).clone());
 
-            let enriched = self.resolve_call_references(&qualname, pdg_json);
+            let enriched = self.resolve_call_references(&qualname, pdg_owned);
 
             if let Some(node) = self.definitions.get_mut(&qualname) {
-                node.pdg = Some(enriched);
+                node.pdg = Some(Arc::new(enriched));
             }
         }
     }

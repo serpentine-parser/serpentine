@@ -3,6 +3,8 @@
 //! Each subscriber implements the `Subscriber` trait and processes events
 //! to produce some output (e.g., scope trees, event counts, etc.).
 
+pub mod types;
+
 mod decorators;
 mod pdg;
 mod code_snippet;
@@ -22,3 +24,8 @@ pub use imports::ImportsSubscriberFactory;
 pub use raw_bindings::RawBindingsSubscriberFactory;
 pub use scope_tree::ScopeTreeSubscriberFactory;
 pub use uses::UsesSubscriberFactory;
+pub use types::{
+    FileSubscriberData, ScopeTree, ScopeNode, Definitions,
+    Uses, Imports, Decorators,
+    RawBinding,
+};

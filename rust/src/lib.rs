@@ -29,6 +29,7 @@ use crate::subscribers::{
     DecoratorsSubscriberFactory, PdgSubscriberFactory, CodeSnippetSubscriberFactory,
     DefinitionsSubscriberFactory, EventCounterSubscriberFactory, ImportsSubscriberFactory,
     RawBindingsSubscriberFactory, ScopeTreeSubscriberFactory, UsesSubscriberFactory,
+    FileSubscriberData,
 };
 
 use rayon::prelude::*;
@@ -36,6 +37,7 @@ use std::collections::hash_map::DefaultHasher;
 use std::collections::HashMap;
 use std::hash::{Hash, Hasher};
 use std::path::{Path, PathBuf};
+use std::time::Instant;
 
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyList};
@@ -118,8 +120,10 @@ struct FileEntry {
     message_bus: MessageBus,
     lang: Lang,
     file_path: String,
-    /// Cached subscriber results from last parse
+    /// Cached subscriber results from last parse (kept for serialization API)
     cached_results: Vec<SubscriberResult>,
+    /// Typed subscriber data deserialized at parse time (used by graph build pipeline)
+    typed_data: FileSubscriberData,
 }
 
 impl FileEntry {
@@ -150,6 +154,7 @@ impl FileEntry {
             message_bus,
             file_path,
             cached_results: Vec::new(),
+            typed_data: FileSubscriberData::default(),
         }
     }
 
@@ -184,6 +189,7 @@ impl FileEntry {
             cached_results.push(SubscriberResult { subscriber_name, data });
         }
 
+        let typed_data = Self::build_typed_data(&cached_results);
         Ok(FileEntry {
             parser,
             tree: None,
@@ -193,6 +199,7 @@ impl FileEntry {
             message_bus,
             file_path,
             cached_results,
+            typed_data,
         })
     }
 
@@ -232,7 +239,42 @@ impl FileEntry {
         };
 
         self.cached_results = self.message_bus.publish_events(events)?;
+        self.typed_data = Self::build_typed_data(&self.cached_results);
         Ok(())
+    }
+
+    fn build_typed_data(results: &[SubscriberResult]) -> FileSubscriberData {
+        let mut data = FileSubscriberData::default();
+        for result in results {
+            match result.subscriber_name.as_str() {
+                "scope_tree" => {
+                    data.scope_tree = serde_json::from_value(result.data.clone()).unwrap_or_default();
+                }
+                "definitions" => {
+                    data.definitions = serde_json::from_value(result.data.clone()).unwrap_or_default();
+                }
+                "uses" => {
+                    data.uses = serde_json::from_value(result.data.clone()).unwrap_or_default();
+                }
+                "imports" => {
+                    data.imports = serde_json::from_value(result.data.clone()).unwrap_or_default();
+                }
+                "decorators" => {
+                    data.decorators = serde_json::from_value(result.data.clone()).unwrap_or_default();
+                }
+                "raw_bindings" => {
+                    data.raw_bindings = serde_json::from_value(result.data.clone()).unwrap_or_default();
+                }
+                "pdg" => {
+                    data.pdg = result.data.clone();
+                }
+                "code_snippet" => {
+                    data.code_snippet = result.data.clone();
+                }
+                _ => {}
+            }
+        }
+        data
     }
 
     /// Get the cached subscriber results.
@@ -254,182 +296,135 @@ pub struct FileManager {
 }
 
 /// Per-type subscriber data tagged with the originating file path.
-struct PerFileData {
-    scope_trees: Vec<(PathBuf, serde_json::Value)>,
-    definitions: Vec<(PathBuf, serde_json::Value)>,
-    uses: Vec<(PathBuf, serde_json::Value)>,
-    raw_bindings: Vec<(PathBuf, serde_json::Value)>,
-    imports: Vec<(PathBuf, serde_json::Value)>,
-    decorators: Vec<(PathBuf, serde_json::Value)>,
-    pdgs: Vec<(PathBuf, serde_json::Value)>,
-    code_snippets: Vec<(PathBuf, serde_json::Value)>,
-}
-
-impl PerFileData {
-    fn new() -> Self {
-        PerFileData {
-            scope_trees: Vec::new(),
-            definitions: Vec::new(),
-            uses: Vec::new(),
-            raw_bindings: Vec::new(),
-            imports: Vec::new(),
-            decorators: Vec::new(),
-            pdgs: Vec::new(),
-            code_snippets: Vec::new(),
-        }
-    }
-
-    fn collect_from(files: &HashMap<PathBuf, FileEntry>) -> Self {
-        let mut data = Self::new();
-        for (path, entry) in files {
-            for result in entry.get_results() {
-                let v = result.data.clone();
-                match result.subscriber_name.as_str() {
-                    "scope_tree" => data.scope_trees.push((path.clone(), v)),
-                    "definitions" => data.definitions.push((path.clone(), v)),
-                    "uses" => data.uses.push((path.clone(), v)),
-                    "raw_bindings" => data.raw_bindings.push((path.clone(), v)),
-                    "imports" => data.imports.push((path.clone(), v)),
-                    "decorators" => data.decorators.push((path.clone(), v)),
-                    "pdg" => data.pdgs.push((path.clone(), v)),
-                    "code_snippet" => data.code_snippets.push((path.clone(), v)),
-                    _ => {}
-                }
-            }
-        }
-        data
-    }
-
-    fn collect_for_paths<'a>(files: &HashMap<PathBuf, FileEntry>, paths: impl Iterator<Item = &'a PathBuf>) -> Self {
-        let mut data = Self::new();
-        for path in paths {
-            if let Some(entry) = files.get(path) {
-                for result in entry.get_results() {
-                    let v = result.data.clone();
-                    match result.subscriber_name.as_str() {
-                        "scope_tree" => data.scope_trees.push((path.clone(), v)),
-                        "definitions" => data.definitions.push((path.clone(), v)),
-                        "uses" => data.uses.push((path.clone(), v)),
-                        "raw_bindings" => data.raw_bindings.push((path.clone(), v)),
-                        "imports" => data.imports.push((path.clone(), v)),
-                        "decorators" => data.decorators.push((path.clone(), v)),
-                        "pdg" => data.pdgs.push((path.clone(), v)),
-                        "code_snippet" => data.code_snippets.push((path.clone(), v)),
-                        _ => {}
-                    }
-                }
-            }
-        }
-        data
-    }
-}
 
 /// Run all load passes for the given per-file data against `builder`.
 /// Sets `current_file` before each file's data and clears it after.
 /// This is the "assert" path — adds to existing state rather than replacing.
-fn assert_files(builder: &mut GraphBuilder, data: &PerFileData, files: &HashMap<PathBuf, FileEntry>) {
-    // Pass 1: Build nodes
-    for (path, d) in &data.scope_trees {
-        builder.current_file = Some(path.clone());
-        builder.load_scope_tree(d);
+fn assert_files(builder: &mut GraphBuilder, paths: &[PathBuf], files: &HashMap<PathBuf, FileEntry>) {
+    let profile = std::env::var("SERPENTINE_PROFILE").is_ok();
+
+    let t = profile.then(Instant::now);
+    for path in paths {
+        if let Some(entry) = files.get(path) {
+            builder.current_file = Some(path.clone());
+            builder.load_scope_tree(&entry.typed_data.scope_tree);
+        }
     }
     builder.current_file = None;
+    if let Some(t) = t { eprintln!("[PROFILE] load_scope_tree: {:.1}ms", t.elapsed().as_secs_f64() * 1000.0); }
 
-    for (path, d) in &data.definitions {
-        builder.current_file = Some(path.clone());
-        builder.load_definitions(d);
+    let t = profile.then(Instant::now);
+    for path in paths {
+        if let Some(entry) = files.get(path) {
+            builder.current_file = Some(path.clone());
+            builder.load_definitions(&entry.typed_data.definitions);
+        }
     }
-
-    // Populate local_prefixes for these files
-    for (path, _) in &data.scope_trees {
+    // Populate local_prefixes for processed files
+    for path in paths {
         let module_path = builder.file_to_module(&path.to_string_lossy());
         let top = module_path.split('.').next().unwrap_or(&module_path).to_string();
-        if !top.is_empty() {
-            builder.local_prefixes.insert(top);
-        }
+        if !top.is_empty() { builder.local_prefixes.insert(top); }
     }
     // Also ensure all files in the manager contribute their top-level prefix
     for path in files.keys() {
         let module_path = builder.file_to_module(&path.to_string_lossy());
         let top = module_path.split('.').next().unwrap_or(&module_path).to_string();
-        if !top.is_empty() {
-            builder.local_prefixes.insert(top);
+        if !top.is_empty() { builder.local_prefixes.insert(top); }
+    }
+    builder.current_file = None;
+    if let Some(t) = t { eprintln!("[PROFILE] load_definitions: {:.1}ms", t.elapsed().as_secs_f64() * 1000.0); }
+
+    let t = profile.then(Instant::now);
+    for path in paths {
+        if let Some(entry) = files.get(path) {
+            builder.current_file = Some(path.clone());
+            builder.load_code_snippets(&entry.typed_data.code_snippet);
         }
     }
+    builder.current_file = None;
+    if let Some(t) = t { eprintln!("[PROFILE] load_code_snippets: {:.1}ms", t.elapsed().as_secs_f64() * 1000.0); }
 
-    for (path, d) in &data.pdgs {
-        builder.current_file = Some(path.clone());
-        builder.load_pdgs(d);
+    // Build re-export map (current_file is None — reexport contributions not tracked per-file)
+    let imports_slice: Vec<&crate::subscribers::types::Imports> = paths.iter()
+        .filter_map(|p| files.get(p).map(|e| &e.typed_data.imports))
+        .collect();
+    let t = profile.then(Instant::now);
+    builder.build_reexport_map(&imports_slice);
+    if let Some(t) = t { eprintln!("[PROFILE] build_reexport_map: {:.1}ms", t.elapsed().as_secs_f64() * 1000.0); }
+
+    let t = profile.then(Instant::now);
+    for path in paths {
+        if let Some(entry) = files.get(path) {
+            builder.current_file = Some(path.clone());
+            builder.load_import_bindings(&entry.typed_data.imports);
+        }
     }
     builder.current_file = None;
+    builder.resolve_import_chains();
+    if let Some(t) = t { eprintln!("[PROFILE] load_import_bindings: {:.1}ms", t.elapsed().as_secs_f64() * 1000.0); }
 
-    for (path, d) in &data.code_snippets {
-        builder.current_file = Some(path.clone());
-        builder.load_code_snippets(d);
+    let t = profile.then(Instant::now);
+    for path in paths {
+        if let Some(entry) = files.get(path) {
+            builder.current_file = Some(path.clone());
+            builder.resolve_inheritance_edges(&entry.typed_data.scope_tree);
+        }
     }
     builder.current_file = None;
+    if let Some(t) = t { eprintln!("[PROFILE] resolve_inheritance_edges: {:.1}ms", t.elapsed().as_secs_f64() * 1000.0); }
 
-    // Build re-export map (uses only reexport files, others are no-ops)
-    let import_values: Vec<serde_json::Value> = data.imports.iter().map(|(_, v)| v.clone()).collect();
-    for (path, d) in &data.imports {
-        builder.current_file = Some(path.clone());
-        let _ = d; // current_file is set; build_reexport_map iterates the slice
+    let t = profile.then(Instant::now);
+    for path in paths {
+        if let Some(entry) = files.get(path) {
+            builder.current_file = Some(path.clone());
+            builder.load_uses(&entry.typed_data.uses);
+        }
     }
     builder.current_file = None;
-    builder.build_reexport_map(&import_values);
+    if let Some(t) = t { eprintln!("[PROFILE] load_uses: {:.1}ms", t.elapsed().as_secs_f64() * 1000.0); }
 
-    for (path, d) in &data.imports {
-        builder.current_file = Some(path.clone());
-        builder.load_import_bindings(d);
+    let t = profile.then(Instant::now);
+    for path in paths {
+        if let Some(entry) = files.get(path) {
+            builder.current_file = Some(path.clone());
+            builder.load_decorators(&entry.typed_data.decorators);
+        }
     }
     builder.current_file = None;
+    if let Some(t) = t { eprintln!("[PROFILE] load_decorators: {:.1}ms", t.elapsed().as_secs_f64() * 1000.0); }
 
-    // Resolve is-a edges (needs import_bindings populated above)
-    for (path, d) in &data.scope_trees {
-        builder.current_file = Some(path.clone());
-        builder.resolve_inheritance_edges(d);
-    }
-    builder.current_file = None;
-
-    // Pass 2: Build edges
-    for (path, d) in &data.uses {
-        builder.current_file = Some(path.clone());
-        builder.load_uses(d);
-    }
-    builder.current_file = None;
-
-    for (path, d) in &data.decorators {
-        builder.current_file = Some(path.clone());
-        builder.load_decorators(d);
-    }
-    builder.current_file = None;
-
-    // Store raw_bindings per file in contributions (for incremental re-merge)
-    for (path, d) in &data.raw_bindings {
-        if let serde_json::Value::Array(arr) = d {
+    // Store typed raw_bindings per file for global re-merge
+    for path in paths {
+        if let Some(entry) = files.get(path) {
             builder.file_contributions
                 .entry(path.clone())
                 .or_default()
-                .raw_bindings = arr.clone();
+                .raw_bindings = entry.typed_data.raw_bindings.clone();
         }
     }
 
-    for (path, d) in &data.imports {
-        builder.current_file = Some(path.clone());
-        builder.load_imports(d);
+    let t = profile.then(Instant::now);
+    for path in paths {
+        if let Some(entry) = files.get(path) {
+            builder.current_file = Some(path.clone());
+            builder.load_imports(&entry.typed_data.imports);
+        }
     }
     builder.current_file = None;
+    if let Some(t) = t { eprintln!("[PROFILE] load_imports: {:.1}ms", t.elapsed().as_secs_f64() * 1000.0); }
 }
 
-/// Run the global load_raw_bindings pass using stored per-file raw_bindings.
+/// Run the global load_raw_bindings pass using stored per-file typed raw_bindings.
 fn run_global_raw_bindings(builder: &mut GraphBuilder) {
-    let merged: Vec<serde_json::Value> = builder
+    let all_bindings: Vec<crate::subscribers::RawBinding> = builder
         .file_contributions
         .values()
         .flat_map(|c| c.raw_bindings.iter().cloned())
         .collect();
-    let merged_value = serde_json::Value::Array(merged);
-    builder.load_raw_bindings(&merged_value);
+    let t = std::env::var("SERPENTINE_PROFILE").ok().map(|_| Instant::now());
+    builder.load_raw_bindings(&all_bindings);
+    if let Some(t) = t { eprintln!("[PROFILE] load_raw_bindings: {:.1}ms", t.elapsed().as_secs_f64() * 1000.0); }
 }
 
 #[pymethods]
@@ -529,6 +524,8 @@ impl FileManager {
     /// On first call: full build. On subsequent calls with dirty files: incremental
     /// retract+assert for changed files, global raw_bindings re-run, then snapshot.
     fn build_dependency_graph(&mut self) -> PyResult<String> {
+        let profile = std::env::var("SERPENTINE_PROFILE").is_ok();
+
         if self.graph_builder.is_none() {
             // ----------------------------------------------------------------
             // Cold (first) build — initialize builder and run all passes
@@ -541,12 +538,15 @@ impl FileManager {
                 Box::new(TerraformConfig::new()),
             ];
 
-            let data = PerFileData::collect_from(&self.files);
-            assert_files(&mut builder, &data, &self.files);
+            let all_paths: Vec<PathBuf> = self.files.keys().cloned().collect();
+            assert_files(&mut builder, &all_paths, &self.files);
             run_global_raw_bindings(&mut builder);
-            builder.enrich_pdgs();
 
+            let t = profile.then(Instant::now);
             let json = builder.snapshot().to_json();
+            if let Some(t) = t { eprintln!("[PROFILE] snapshot: {:.1}ms", t.elapsed().as_secs_f64() * 1000.0); }
+
+            builder.cached_snapshot = Some(json.clone());
             self.graph_builder = Some(builder);
             return Ok(json);
         }
@@ -554,8 +554,13 @@ impl FileManager {
         let builder = self.graph_builder.as_mut().unwrap();
 
         if builder.dirty_files.is_empty() {
-            // Nothing changed — return snapshot of current state
-            return Ok(builder.snapshot().to_json());
+            // Nothing changed — return cached snapshot (avoids ~1s serialization cost)
+            if let Some(ref cached) = builder.cached_snapshot {
+                return Ok(cached.clone());
+            }
+            let json = builder.snapshot().to_json();
+            builder.cached_snapshot = Some(json.clone());
+            return Ok(json);
         }
 
         // ----------------------------------------------------------------
@@ -569,17 +574,18 @@ impl FileManager {
         }
 
         // Re-assert dirty files (re-run load passes for changed files only)
-        let dirty_data = PerFileData::collect_for_paths(&self.files, dirty_paths.iter());
-        assert_files(builder, &dirty_data, &self.files);
+        assert_files(builder, &dirty_paths, &self.files);
 
         // Re-run the global raw_bindings pass now that per-file raw_bindings are updated
         builder.clear_raw_binding_edges();
         run_global_raw_bindings(builder);
 
-        // Re-enrich PDGs globally (needed since LEGB resolution may have changed)
-        builder.enrich_pdgs();
+        let t = profile.then(Instant::now);
+        let json = builder.snapshot().to_json();
+        if let Some(t) = t { eprintln!("[PROFILE] snapshot: {:.1}ms", t.elapsed().as_secs_f64() * 1000.0); }
 
-        Ok(builder.snapshot().to_json())
+        builder.cached_snapshot = Some(json.clone());
+        Ok(json)
     }
 
     /// Get parsed results from all tracked files (deprecated).

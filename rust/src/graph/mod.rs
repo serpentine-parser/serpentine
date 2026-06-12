@@ -10,6 +10,7 @@
 //! - Language-specific behaviour is pluggable via the `LanguageConfig` trait (Phase 3)
 
 use std::collections::HashMap;
+use std::sync::Arc;
 
 use serde::{Deserialize, Serialize};
 
@@ -71,7 +72,7 @@ pub struct NodeData {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub docstring: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub code_block: Option<String>,
+    pub code_block: Option<Arc<str>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub content_hash: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -80,8 +81,8 @@ pub struct NodeData {
     pub origin: Option<Origin>,
     #[serde(default)]
     pub children: Vec<NodeData>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub pdg: Option<serde_json::Value>,
+    #[serde(skip)]
+    pub pdg: Option<Arc<serde_json::Value>>,
     /// Function parameter names (excluding self/cls). Used by CONSTRUCTOR-ARG pass.
     #[serde(skip_serializing_if = "Vec::is_empty", default)]
     pub parameters: Vec<String>,

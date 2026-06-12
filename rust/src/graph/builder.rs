@@ -1,9 +1,8 @@
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 
-use serde_json::Value;
-
 use super::{DependencyGraph, EdgeData, GraphMetadata, LanguageConfig, NodeData};
+use crate::subscribers::RawBinding;
 
 /// Per-file ownership record for incremental graph updates.
 #[derive(Default)]
@@ -17,9 +16,9 @@ pub(crate) struct FileContributions {
     pub(crate) reexport_keys: Vec<String>,
     /// Keys this file added to `import_bindings`.
     pub(crate) import_binding_keys: Vec<String>,
-    /// Raw binding array from this file's subscriber output, stored for
+    /// Typed raw bindings from this file's subscriber output, stored for
     /// global re-merge when any file is dirtied.
-    pub(crate) raw_bindings: Vec<Value>,
+    pub(crate) raw_bindings: Vec<RawBinding>,
 }
 
 /// Builder that combines subscriber outputs into a DependencyGraph
@@ -66,6 +65,9 @@ pub struct GraphBuilder {
     pub(crate) current_file: Option<PathBuf>,
     /// Cached hierarchical nodes from the last build. None when rebuild needed.
     pub(crate) cached_hierarchy: Option<Vec<NodeData>>,
+    /// Cached JSON snapshot from the last completed build. Cleared when any
+    /// file is retracted (i.e., on the first dirty-file build after a change).
+    pub(crate) cached_snapshot: Option<String>,
 }
 
 impl Default for GraphBuilder {
@@ -91,6 +93,7 @@ impl GraphBuilder {
             dirty_files: HashSet::new(),
             current_file: None,
             cached_hierarchy: None,
+            cached_snapshot: None,
         }
     }
 
@@ -161,6 +164,7 @@ impl GraphBuilder {
 
     /// Remove all contributions from `path` and retract their effects on graph state.
     pub fn retract_file(&mut self, path: &Path) {
+        self.cached_snapshot = None;
         let Some(contrib) = self.file_contributions.remove(path) else {
             return;
         };
