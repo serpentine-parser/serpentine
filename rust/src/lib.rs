@@ -153,6 +153,49 @@ impl FileEntry {
         }
     }
 
+    /// Restore a FileEntry from serialized subscriber results without re-parsing.
+    /// The source is left empty and source_hash is 0; a future update() call will
+    /// detect any content change and trigger a normal re-parse.
+    fn from_results_json(lang: Lang, file_path: String, results_json: &str) -> Result<Self, String> {
+        let mut parser = Parser::new();
+        parser.set_language(&lang.language()).unwrap();
+
+        let mut message_bus = MessageBus::new();
+        message_bus.register(EventCounterSubscriberFactory::new("counter"));
+        message_bus.register(ScopeTreeSubscriberFactory::new("scope_tree"));
+        message_bus.register(DefinitionsSubscriberFactory::new("definitions"));
+        message_bus.register(UsesSubscriberFactory::new("uses"));
+        message_bus.register(RawBindingsSubscriberFactory::new("raw_bindings"));
+        message_bus.register(ImportsSubscriberFactory::new("imports"));
+        message_bus.register(DecoratorsSubscriberFactory::new("decorators"));
+        message_bus.register(PdgSubscriberFactory::new("pdg"));
+        message_bus.register(CodeSnippetSubscriberFactory::new("code_snippet"));
+
+        let values: Vec<serde_json::Value> =
+            serde_json::from_str(results_json).map_err(|e| format!("results JSON parse error: {e}"))?;
+
+        let mut cached_results = Vec::with_capacity(values.len());
+        for v in values {
+            let subscriber_name = v["subscriber"]
+                .as_str()
+                .ok_or_else(|| "missing 'subscriber' field in cached result".to_string())?
+                .to_string();
+            let data = v["data"].clone();
+            cached_results.push(SubscriberResult { subscriber_name, data });
+        }
+
+        Ok(FileEntry {
+            parser,
+            tree: None,
+            source: String::new(),
+            source_hash: 0,
+            lang,
+            message_bus,
+            file_path,
+            cached_results,
+        })
+    }
+
     fn compute_hash(content: &str) -> u64 {
         let mut hasher = DefaultHasher::new();
         content.hash(&mut hasher);
@@ -206,6 +249,187 @@ impl FileEntry {
 #[pyclass]
 pub struct FileManager {
     files: HashMap<PathBuf, FileEntry>,
+    /// Persistent graph builder. None until first call to build_dependency_graph.
+    graph_builder: Option<GraphBuilder>,
+}
+
+/// Per-type subscriber data tagged with the originating file path.
+struct PerFileData {
+    scope_trees: Vec<(PathBuf, serde_json::Value)>,
+    definitions: Vec<(PathBuf, serde_json::Value)>,
+    uses: Vec<(PathBuf, serde_json::Value)>,
+    raw_bindings: Vec<(PathBuf, serde_json::Value)>,
+    imports: Vec<(PathBuf, serde_json::Value)>,
+    decorators: Vec<(PathBuf, serde_json::Value)>,
+    pdgs: Vec<(PathBuf, serde_json::Value)>,
+    code_snippets: Vec<(PathBuf, serde_json::Value)>,
+}
+
+impl PerFileData {
+    fn new() -> Self {
+        PerFileData {
+            scope_trees: Vec::new(),
+            definitions: Vec::new(),
+            uses: Vec::new(),
+            raw_bindings: Vec::new(),
+            imports: Vec::new(),
+            decorators: Vec::new(),
+            pdgs: Vec::new(),
+            code_snippets: Vec::new(),
+        }
+    }
+
+    fn collect_from(files: &HashMap<PathBuf, FileEntry>) -> Self {
+        let mut data = Self::new();
+        for (path, entry) in files {
+            for result in entry.get_results() {
+                let v = result.data.clone();
+                match result.subscriber_name.as_str() {
+                    "scope_tree" => data.scope_trees.push((path.clone(), v)),
+                    "definitions" => data.definitions.push((path.clone(), v)),
+                    "uses" => data.uses.push((path.clone(), v)),
+                    "raw_bindings" => data.raw_bindings.push((path.clone(), v)),
+                    "imports" => data.imports.push((path.clone(), v)),
+                    "decorators" => data.decorators.push((path.clone(), v)),
+                    "pdg" => data.pdgs.push((path.clone(), v)),
+                    "code_snippet" => data.code_snippets.push((path.clone(), v)),
+                    _ => {}
+                }
+            }
+        }
+        data
+    }
+
+    fn collect_for_paths<'a>(files: &HashMap<PathBuf, FileEntry>, paths: impl Iterator<Item = &'a PathBuf>) -> Self {
+        let mut data = Self::new();
+        for path in paths {
+            if let Some(entry) = files.get(path) {
+                for result in entry.get_results() {
+                    let v = result.data.clone();
+                    match result.subscriber_name.as_str() {
+                        "scope_tree" => data.scope_trees.push((path.clone(), v)),
+                        "definitions" => data.definitions.push((path.clone(), v)),
+                        "uses" => data.uses.push((path.clone(), v)),
+                        "raw_bindings" => data.raw_bindings.push((path.clone(), v)),
+                        "imports" => data.imports.push((path.clone(), v)),
+                        "decorators" => data.decorators.push((path.clone(), v)),
+                        "pdg" => data.pdgs.push((path.clone(), v)),
+                        "code_snippet" => data.code_snippets.push((path.clone(), v)),
+                        _ => {}
+                    }
+                }
+            }
+        }
+        data
+    }
+}
+
+/// Run all load passes for the given per-file data against `builder`.
+/// Sets `current_file` before each file's data and clears it after.
+/// This is the "assert" path — adds to existing state rather than replacing.
+fn assert_files(builder: &mut GraphBuilder, data: &PerFileData, files: &HashMap<PathBuf, FileEntry>) {
+    // Pass 1: Build nodes
+    for (path, d) in &data.scope_trees {
+        builder.current_file = Some(path.clone());
+        builder.load_scope_tree(d);
+    }
+    builder.current_file = None;
+
+    for (path, d) in &data.definitions {
+        builder.current_file = Some(path.clone());
+        builder.load_definitions(d);
+    }
+
+    // Populate local_prefixes for these files
+    for (path, _) in &data.scope_trees {
+        let module_path = builder.file_to_module(&path.to_string_lossy());
+        let top = module_path.split('.').next().unwrap_or(&module_path).to_string();
+        if !top.is_empty() {
+            builder.local_prefixes.insert(top);
+        }
+    }
+    // Also ensure all files in the manager contribute their top-level prefix
+    for path in files.keys() {
+        let module_path = builder.file_to_module(&path.to_string_lossy());
+        let top = module_path.split('.').next().unwrap_or(&module_path).to_string();
+        if !top.is_empty() {
+            builder.local_prefixes.insert(top);
+        }
+    }
+
+    for (path, d) in &data.pdgs {
+        builder.current_file = Some(path.clone());
+        builder.load_pdgs(d);
+    }
+    builder.current_file = None;
+
+    for (path, d) in &data.code_snippets {
+        builder.current_file = Some(path.clone());
+        builder.load_code_snippets(d);
+    }
+    builder.current_file = None;
+
+    // Build re-export map (uses only reexport files, others are no-ops)
+    let import_values: Vec<serde_json::Value> = data.imports.iter().map(|(_, v)| v.clone()).collect();
+    for (path, d) in &data.imports {
+        builder.current_file = Some(path.clone());
+        let _ = d; // current_file is set; build_reexport_map iterates the slice
+    }
+    builder.current_file = None;
+    builder.build_reexport_map(&import_values);
+
+    for (path, d) in &data.imports {
+        builder.current_file = Some(path.clone());
+        builder.load_import_bindings(d);
+    }
+    builder.current_file = None;
+
+    // Resolve is-a edges (needs import_bindings populated above)
+    for (path, d) in &data.scope_trees {
+        builder.current_file = Some(path.clone());
+        builder.resolve_inheritance_edges(d);
+    }
+    builder.current_file = None;
+
+    // Pass 2: Build edges
+    for (path, d) in &data.uses {
+        builder.current_file = Some(path.clone());
+        builder.load_uses(d);
+    }
+    builder.current_file = None;
+
+    for (path, d) in &data.decorators {
+        builder.current_file = Some(path.clone());
+        builder.load_decorators(d);
+    }
+    builder.current_file = None;
+
+    // Store raw_bindings per file in contributions (for incremental re-merge)
+    for (path, d) in &data.raw_bindings {
+        if let serde_json::Value::Array(arr) = d {
+            builder.file_contributions
+                .entry(path.clone())
+                .or_default()
+                .raw_bindings = arr.clone();
+        }
+    }
+
+    for (path, d) in &data.imports {
+        builder.current_file = Some(path.clone());
+        builder.load_imports(d);
+    }
+    builder.current_file = None;
+}
+
+/// Run the global load_raw_bindings pass using stored per-file raw_bindings.
+fn run_global_raw_bindings(builder: &mut GraphBuilder) {
+    let merged: Vec<serde_json::Value> = builder
+        .file_contributions
+        .values()
+        .flat_map(|c| c.raw_bindings.iter().cloned())
+        .collect();
+    let merged_value = serde_json::Value::Array(merged);
+    builder.load_raw_bindings(&merged_value);
 }
 
 #[pymethods]
@@ -214,6 +438,7 @@ impl FileManager {
     fn new() -> Self {
         FileManager {
             files: HashMap::new(),
+            graph_builder: None,
         }
     }
 
@@ -229,7 +454,13 @@ impl FileManager {
             .process_and_cache()
             .map_err(pyo3::exceptions::PyRuntimeError::new_err)?;
 
-        self.files.insert(pb, entry);
+        self.files.insert(pb.clone(), entry);
+
+        // Mark dirty so the next build_dependency_graph incrementally updates
+        if let Some(ref mut builder) = self.graph_builder {
+            builder.dirty_files.insert(pb);
+        }
+
         Ok(())
     }
 
@@ -248,7 +479,11 @@ impl FileManager {
             .collect();
 
         for (pb, result) in results {
-            self.files.insert(pb, result.map_err(pyo3::exceptions::PyRuntimeError::new_err)?);
+            let entry = result.map_err(pyo3::exceptions::PyRuntimeError::new_err)?;
+            self.files.insert(pb.clone(), entry);
+            if let Some(ref mut builder) = self.graph_builder {
+                builder.dirty_files.insert(pb);
+            }
         }
         Ok(())
     }
@@ -272,6 +507,11 @@ impl FileManager {
 
         let pylist = PyList::empty(py);
         if changed {
+            // Mark dirty so the next build_dependency_graph incrementally updates
+            if let Some(ref mut builder) = self.graph_builder {
+                builder.dirty_files.insert(pb);
+            }
+
             for result in entry.get_results() {
                 let dict = PyDict::new(py);
                 dict.set_item("subscriber", &result.subscriber_name)?;
@@ -286,111 +526,60 @@ impl FileManager {
     /// Build a dependency graph from all tracked files' cached subscriber data.
     /// Returns the graph as a JSON string matching serpentine's GraphData format.
     ///
-    /// The graph is built in three passes:
-    /// 1. Build nodes: scope_tree + definitions + attach raw PDGs
-    /// 2. Build edges: uses + raw_bindings + imports (all reference definitions)
-    /// 3. Enrich: cross-scope data-flow, parameter bindings, flow-graph expansion
+    /// On first call: full build. On subsequent calls with dirty files: incremental
+    /// retract+assert for changed files, global raw_bindings re-run, then snapshot.
     fn build_dependency_graph(&mut self) -> PyResult<String> {
-        let mut builder = GraphBuilder::new();
-        builder.lang_configs = vec![
-            Box::new(PythonConfig::new()),
-            Box::new(JsConfig::new()),
-            Box::new(crate::rust_lang::config::RustConfig::new()),
-            Box::new(TerraformConfig::new()),
-        ];
+        if self.graph_builder.is_none() {
+            // ----------------------------------------------------------------
+            // Cold (first) build — initialize builder and run all passes
+            // ----------------------------------------------------------------
+            let mut builder = GraphBuilder::new();
+            builder.lang_configs = vec![
+                Box::new(PythonConfig::new()),
+                Box::new(JsConfig::new()),
+                Box::new(crate::rust_lang::config::RustConfig::new()),
+                Box::new(TerraformConfig::new()),
+            ];
 
-        // Collect all subscriber data from all files (already cached from parsing)
-        let mut all_scope_trees: Vec<serde_json::Value> = Vec::new();
-        let mut all_definitions: Vec<serde_json::Value> = Vec::new();
-        let mut all_uses: Vec<serde_json::Value> = Vec::new();
-        let mut all_raw_bindings: Vec<serde_json::Value> = Vec::new();
-        let mut all_imports: Vec<serde_json::Value> = Vec::new();
-        let mut all_decorators: Vec<serde_json::Value> = Vec::new();
-        let mut all_pdgs: Vec<serde_json::Value> = Vec::new();
-        let mut all_code_snippets: Vec<serde_json::Value> = Vec::new();
+            let data = PerFileData::collect_from(&self.files);
+            assert_files(&mut builder, &data, &self.files);
+            run_global_raw_bindings(&mut builder);
+            builder.enrich_pdgs();
 
-        for entry in self.files.values() {
-            for result in entry.get_results() {
-                let data = result.data.clone();
-                match result.subscriber_name.as_str() {
-                    "scope_tree" => all_scope_trees.push(data),
-                    "definitions" => all_definitions.push(data),
-                    "uses" => all_uses.push(data),
-                    "raw_bindings" => all_raw_bindings.push(data),
-                    "imports" => all_imports.push(data),
-                    "decorators" => all_decorators.push(data),
-                    "pdg" => all_pdgs.push(data),
-                    "code_snippet" => all_code_snippets.push(data),
-                    _ => {}
-                }
-            }
+            let json = builder.snapshot().to_json();
+            self.graph_builder = Some(builder);
+            return Ok(json);
         }
 
-        // Pass 1: Build nodes — scope tree, definitions, and attach raw PDGs
-        for data in &all_scope_trees {
-            builder.load_scope_tree(data);
-        }
-        for data in all_definitions {
-            builder.load_definitions(&data);
+        let builder = self.graph_builder.as_mut().unwrap();
+
+        if builder.dirty_files.is_empty() {
+            // Nothing changed — return snapshot of current state
+            return Ok(builder.snapshot().to_json());
         }
 
-        // Populate local_prefixes from the set of analyzed file paths so that
-        // classify_module can distinguish project-local modules from third-party.
-        for path in self.files.keys() {
-            let module_path = builder.file_to_module(&path.to_string_lossy());
-            let top = module_path.split('.').next().unwrap_or(&module_path).to_string();
-            if !top.is_empty() {
-                builder.local_prefixes.insert(top);
-            }
-        }
-        for data in all_pdgs {
-            builder.load_pdgs(&data);
-        }
-        for data in all_code_snippets {
-            builder.load_code_snippets(&data);
+        // ----------------------------------------------------------------
+        // Incremental build — retract dirty files, re-assert, rebuild edges
+        // ----------------------------------------------------------------
+        let dirty_paths: Vec<PathBuf> = builder.dirty_files.drain().collect();
+
+        // Retract all dirty files first so their stale contributions are gone
+        for path in &dirty_paths {
+            builder.retract_file(path);
         }
 
-        // Build re-export map from __init__.py imports before creating edges.
-        builder.build_reexport_map(&all_imports);
-        for data in &all_imports {
-            builder.load_import_bindings(data);
-        }
+        // Re-assert dirty files (re-run load passes for changed files only)
+        let dirty_data = PerFileData::collect_for_paths(&self.files, dirty_paths.iter());
+        assert_files(builder, &dirty_data, &self.files);
 
-        // Resolve is-a edges now that import bindings are populated (LEGB can resolve bases).
-        for data in &all_scope_trees {
-            builder.resolve_inheritance_edges(data);
-        }
+        // Re-run the global raw_bindings pass now that per-file raw_bindings are updated
+        builder.clear_raw_binding_edges();
+        run_global_raw_bindings(builder);
 
-        // Pass 2: Build edges — uses, bindings, and imports (all reference definitions)
-        for data in all_uses {
-            builder.load_uses(&data);
-        }
-
-        for data in all_decorators {
-            builder.load_decorators(&data);
-        }
-
-        // Merge all raw bindings into one array — the two-pass ASSIGNED→CALLS
-        // logic in load_raw_bindings requires all bindings to be present at once.
-        let merged_bindings: Vec<serde_json::Value> = all_raw_bindings
-            .iter()
-            .filter_map(|data| data.as_array())
-            .flatten()
-            .cloned()
-            .collect();
-        let merged_bindings_value = serde_json::Value::Array(merged_bindings);
-
-        builder.load_raw_bindings(&merged_bindings_value);
-        for data in all_imports {
-            builder.load_imports(&data);
-        }
-
-        // Pass 3: Enrich PDGs — resolve callee_text → references on call nodes
+        // Re-enrich PDGs globally (needed since LEGB resolution may have changed)
         builder.enrich_pdgs();
 
-        // Build and serialize the graph (includes deduplicate_edges)
-        let graph = builder.build();
-        Ok(graph.to_json())
+        Ok(builder.snapshot().to_json())
     }
 
     /// Get parsed results from all tracked files (deprecated).
@@ -401,8 +590,41 @@ impl FileManager {
     }
 
     fn close_file(&mut self, path: &str) -> PyResult<()> {
-        self.files.remove(&PathBuf::from(path));
+        let pb = PathBuf::from(path);
+        self.files.remove(&pb);
+        // Retract from builder if present
+        if let Some(ref mut builder) = self.graph_builder {
+            builder.retract_file(&pb);
+            builder.dirty_files.remove(&pb);
+        }
         Ok(())
+    }
+
+    /// Hydrate a FileEntry from cached subscriber results without re-running tree-sitter.
+    /// Does not mark the file dirty — it is considered clean/unchanged.
+    fn load_file_results(&mut self, path: &str, results_json: &str) -> PyResult<()> {
+        let pb = PathBuf::from(path);
+        let lang = Lang::from_extension(&pb)
+            .ok_or_else(|| pyo3::exceptions::PyValueError::new_err("Unsupported language"))?;
+        let entry = FileEntry::from_results_json(lang, path.to_string(), results_json)
+            .map_err(pyo3::exceptions::PyRuntimeError::new_err)?;
+        self.files.insert(pb, entry);
+        Ok(())
+    }
+
+    /// Serialize a file's cached subscriber results to JSON for per-file caching.
+    fn get_file_results(&self, path: &str) -> PyResult<String> {
+        let pb = PathBuf::from(path);
+        let entry = self
+            .files
+            .get(&pb)
+            .ok_or_else(|| pyo3::exceptions::PyKeyError::new_err("File not opened"))?;
+        let json: Vec<serde_json::Value> = entry
+            .get_results()
+            .iter()
+            .map(|r| serde_json::json!({"subscriber": r.subscriber_name, "data": r.data}))
+            .collect();
+        serde_json::to_string(&json).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
     }
 }
 

@@ -84,7 +84,9 @@ impl GraphBuilder {
                             self.ensure_external_node(&resolved);
                         }
                         if self.definitions.contains_key(&resolved) {
-                            self.edges.insert(EdgeData::new(qualname, &resolved, "is-a"));
+                            let edge = EdgeData::new(qualname, &resolved, "is-a");
+                            self.record_edge_contribution(edge.clone());
+                            self.edges.insert(edge);
                         }
                     }
                 }
@@ -129,6 +131,10 @@ impl GraphBuilder {
         }
 
         self.definitions.insert(qualname.to_string(), node_data);
+        if scope_type == "module" {
+            self.module_qualnames.insert(qualname.to_string());
+        }
+        self.record_node_contribution(qualname);
         self.ensure_parent_nodes(qualname);
 
         // Store function parameters for the CONSTRUCTOR-ARG pass.
@@ -179,6 +185,7 @@ impl GraphBuilder {
                             let mut node = NodeData::new(qualname, object_type);
                             node.position = Some((line, 0));
                             self.definitions.insert(qualname.to_string(), node);
+                            self.record_node_contribution(qualname);
                             self.ensure_parent_nodes(qualname);
                         }
                     }
@@ -208,7 +215,9 @@ impl GraphBuilder {
                             {
                                 // Check if target is not a parent of source (hierarchy already shows that)
                                 if !scope.starts_with(&format!("{}.", resolved)) {
-                                    self.edges.insert(EdgeData::new(scope, &resolved, "references"));
+                                    let edge = EdgeData::new(scope, &resolved, "references");
+                                    self.record_edge_contribution(edge.clone());
+                                    self.edges.insert(edge);
                                 }
                             }
                         }
@@ -245,7 +254,9 @@ impl GraphBuilder {
                 if let Some(ref local_def) = resolved {
                     if self.definitions.contains_key(local_def.as_str()) {
                         self.ensure_parent_nodes(decorated_fn);
-                        self.edges.insert(EdgeData::new(local_def, decorated_fn, "has-a"));
+                        let edge = EdgeData::new(local_def, decorated_fn, "has-a");
+                        self.record_edge_contribution(edge.clone());
+                        self.edges.insert(edge);
                         continue;
                     }
                 }
@@ -256,7 +267,9 @@ impl GraphBuilder {
                 if self.definitions.contains_key(local_def.as_str())
                     && self.definitions.contains_key(decorated_fn)
                 {
-                    self.edges.insert(EdgeData::new(decorated_fn, local_def, "references"));
+                    let edge = EdgeData::new(decorated_fn, local_def, "references");
+                    self.record_edge_contribution(edge.clone());
+                    self.edges.insert(edge);
                 }
             }
         }
@@ -315,12 +328,10 @@ impl GraphBuilder {
 
                 let resolved_source = source_module.to_string();
 
-                // Only build re-export entries for local sources
+                // Only build re-export entries for local sources.
+                // Use module_qualnames for O(1) lookup instead of O(n) key scan.
                 let source_is_local = self.definitions.contains_key(&resolved_source)
-                    || self
-                        .definitions
-                        .keys()
-                        .any(|k| k.starts_with(&format!("{}.", resolved_source)));
+                    || self.module_qualnames.contains(&resolved_source);
                 if !source_is_local {
                     continue;
                 }
@@ -337,6 +348,7 @@ impl GraphBuilder {
                     if !self.definitions.contains_key(&phantom)
                         && self.definitions.contains_key(&actual)
                     {
+                        self.record_reexport_contribution(&phantom);
                         self.reexport_map.insert(phantom, actual);
                     }
                 }
@@ -391,6 +403,7 @@ impl GraphBuilder {
                         .and_then(|v| v.as_str())
                         .unwrap_or(top);
                     let binding_key = format!("{}.{}", importing_module, local_name);
+                    self.record_import_binding_contribution(&binding_key);
                     self.import_bindings.insert(binding_key, resolved_source.clone());
                 } else {
                     // `from foo import bar, baz` or `from foo import bar as b`
@@ -413,6 +426,7 @@ impl GraphBuilder {
                             .cloned()
                             .unwrap_or(raw_target);
                         let binding_key = format!("{}.{}", importing_module, local_name);
+                        self.record_import_binding_contribution(&binding_key);
                         self.import_bindings.insert(binding_key, resolved_target);
                     }
                 }
@@ -420,6 +434,7 @@ impl GraphBuilder {
                 // No imported_names field → bare `import foo`
                 let top = resolved_source.split('.').next().unwrap_or(&resolved_source);
                 let binding_key = format!("{}.{}", importing_module, top);
+                self.record_import_binding_contribution(&binding_key);
                 self.import_bindings.insert(binding_key, resolved_source.clone());
             }
         }
@@ -496,11 +511,9 @@ impl GraphBuilder {
                 if !crate::graph::resolvers::is_ancestor(&resolved_module, &importing_module) {
                     self.ensure_import_target(&resolved_module);
                     if self.definitions.contains_key(&resolved_module) {
-                        self.edges.insert(EdgeData::new(
-                            &importing_module,
-                            &resolved_module,
-                            "imports",
-                        ));
+                        let edge = EdgeData::new(&importing_module, &resolved_module, "imports");
+                        self.record_edge_contribution(edge.clone());
+                        self.edges.insert(edge);
                     }
                 }
             } else if imported_names.contains(&"*".to_string()) {
@@ -508,11 +521,9 @@ impl GraphBuilder {
                 if !crate::graph::resolvers::is_ancestor(&resolved_module, &importing_module) {
                     self.ensure_import_target(&resolved_module);
                     if self.definitions.contains_key(&resolved_module) {
-                        self.edges.insert(EdgeData::new(
-                            &importing_module,
-                            &resolved_module,
-                            "imports",
-                        ));
+                        let edge = EdgeData::new(&importing_module, &resolved_module, "imports");
+                        self.record_edge_contribution(edge.clone());
+                        self.edges.insert(edge);
                     }
                 }
             } else {
@@ -529,8 +540,9 @@ impl GraphBuilder {
                     if !crate::graph::resolvers::is_ancestor(&target, &importing_module) {
                         self.ensure_import_target(&target);
                         if self.definitions.contains_key(&target) {
-                            self.edges
-                                .insert(EdgeData::new(&importing_module, &target, "imports"));
+                            let edge = EdgeData::new(&importing_module, &target, "imports");
+                            self.record_edge_contribution(edge.clone());
+                            self.edges.insert(edge);
                         }
                     }
                 }
@@ -550,6 +562,9 @@ impl GraphBuilder {
             Value::Array(arr) => arr,
             _ => return,
         };
+
+        // Snapshot edge set before this pass so we can compute the net additions.
+        let edges_before: std::collections::HashSet<EdgeData> = self.edges.clone();
 
         // Pass 1: ASSIGNED — build has-a edges so the index is fully populated
         for binding in bindings {
@@ -1051,6 +1066,11 @@ impl GraphBuilder {
                 }
             }
         }
+
+        // Record all net-new edges from this pass for incremental invalidation.
+        // This includes edges added by ASSIGNED, CALLS, and surviving RETYPE edges,
+        // but excludes per-file edges that existed before this call.
+        self.raw_binding_edges = self.edges.difference(&edges_before).cloned().collect();
     }
 
     /// Load PDG data and attach to function and module nodes
