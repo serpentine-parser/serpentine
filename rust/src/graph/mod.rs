@@ -71,7 +71,7 @@ pub struct NodeData {
     pub position: Option<(usize, usize)>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub docstring: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(skip)]
     pub code_block: Option<Arc<str>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub content_hash: Option<String>,
@@ -79,7 +79,7 @@ pub struct NodeData {
     pub file_path: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub origin: Option<Origin>,
-    #[serde(default)]
+    #[serde(skip)]
     pub children: Vec<NodeData>,
     #[serde(skip)]
     pub pdg: Option<Arc<serde_json::Value>>,
@@ -182,7 +182,7 @@ impl DependencyGraph {
     }
 
     pub fn to_json(&self) -> String {
-        serde_json::to_string_pretty(self).unwrap_or_else(|_| "{}".to_string())
+        serde_json::to_string(self).unwrap_or_else(|_| "{}".to_string())
     }
 }
 

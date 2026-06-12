@@ -1,7 +1,10 @@
 use std::collections::{HashMap, HashSet};
+use std::sync::Mutex;
 use std::path::{Path, PathBuf};
 
-use super::{DependencyGraph, EdgeData, GraphMetadata, LanguageConfig, NodeData};
+use indexmap::{IndexMap, IndexSet};
+
+use super::{EdgeData, GraphMetadata, LanguageConfig, NodeData};
 use crate::subscribers::RawBinding;
 
 /// Per-file ownership record for incremental graph updates.
@@ -68,6 +71,16 @@ pub struct GraphBuilder {
     /// Cached JSON snapshot from the last completed build. Cleared when any
     /// file is retracted (i.e., on the first dirty-file build after a change).
     pub(crate) cached_snapshot: Option<String>,
+    /// Incremental hierarchy: parent qualname → ordered child qualnames.
+    /// Updated on every definitions insert and cleared on retract_file.
+    pub(crate) hierarchy_children: IndexMap<String, Vec<String>>,
+    /// Root qualnames (no parent in definitions), in insertion order.
+    pub(crate) hierarchy_roots: IndexSet<String>,
+    /// Per-node JSON fragment cache (structural fields only, excluding children).
+    /// Mutex-protected so snapshot() can populate it without requiring &mut self
+    /// while still satisfying PyO3's Send + Sync requirement on FileManager.
+    /// Entries are invalidated in retract_file when a node is removed.
+    pub(crate) node_json_cache: Mutex<HashMap<String, String>>,
 }
 
 impl Default for GraphBuilder {
@@ -94,6 +107,9 @@ impl GraphBuilder {
             current_file: None,
             cached_hierarchy: None,
             cached_snapshot: None,
+            hierarchy_children: IndexMap::new(),
+            hierarchy_roots: IndexSet::new(),
+            node_json_cache: Mutex::new(HashMap::new()),
         }
     }
 
@@ -141,6 +157,22 @@ impl GraphBuilder {
         }
     }
 
+    /// Register a newly-inserted node in the incremental hierarchy.
+    /// Must be called AFTER the node's ancestors exist in `self.definitions`
+    /// (i.e., after `ensure_parent_nodes` returns).
+    pub(crate) fn register_node_in_hierarchy(&mut self, qualname: &str) {
+        if let Some((parent, _)) = qualname.rsplit_once('.') {
+            if self.definitions.contains_key(parent) {
+                let children = self.hierarchy_children.entry(parent.to_string()).or_default();
+                if !children.iter().any(|c| c == qualname) {
+                    children.push(qualname.to_string());
+                }
+                return;
+            }
+        }
+        self.hierarchy_roots.insert(qualname.to_string());
+    }
+
     /// Build the edge_caller_index from current edges. Call before the CALLS
     /// pass of load_raw_bindings so resolve_variable_type gets O(1) lookups.
     pub(crate) fn build_edge_caller_index(&mut self) {
@@ -171,6 +203,16 @@ impl GraphBuilder {
         for qualname in &contrib.node_ids {
             self.definitions.remove(qualname);
             self.module_qualnames.remove(qualname);
+            // Remove from incremental hierarchy
+            self.hierarchy_roots.shift_remove(qualname.as_str());
+            if let Some((parent, _)) = qualname.rsplit_once('.') {
+                if let Some(children) = self.hierarchy_children.get_mut(parent) {
+                    children.retain(|c| c != qualname.as_str());
+                }
+            }
+            self.hierarchy_children.shift_remove(qualname.as_str());
+            // Invalidate the per-node JSON fragment cache entry
+            self.node_json_cache.lock().unwrap().remove(qualname.as_str());
         }
         for edge in &contrib.edge_keys {
             self.edges.remove(edge);
@@ -220,14 +262,13 @@ impl GraphBuilder {
         }
     }
 
-    /// Produce a graph snapshot from current state without consuming the builder.
-    /// Clones edges and definitions, runs dedup/filter, and builds the hierarchy.
-    pub fn snapshot(&self) -> DependencyGraph {
+    /// Produce a graph snapshot JSON string from current state without consuming the builder.
+    /// Uses the incremental hierarchy and per-node JSON fragment cache for fast incremental
+    /// serialization: only nodes retracted since the last snapshot need re-serialization.
+    pub fn snapshot(&self) -> String {
         let mut edges: HashSet<EdgeData> = self.edges.clone();
         edges.extend(self.raw_binding_edges.iter().cloned());
-
         Self::deduplicate_edges_set(&mut edges);
-
         let edges: Vec<EdgeData> = edges
             .into_iter()
             .filter(|edge| {
@@ -236,15 +277,81 @@ impl GraphBuilder {
             })
             .collect();
 
-        let root_nodes = Self::build_hierarchy(self.definitions.clone());
+        let mut out = String::with_capacity(8 * 1024 * 1024);
+        out.push_str("{\"nodes\":[");
+        let mut first_root = true;
+        for root in &self.hierarchy_roots {
+            if !self.definitions.contains_key(root.as_str()) {
+                continue;
+            }
+            if !first_root {
+                out.push(',');
+            }
+            first_root = false;
+            self.write_node_json(&mut out, root);
+        }
+        out.push_str("],\"edges\":");
+        out.push_str(&serde_json::to_string(&edges).unwrap_or_default());
+        let metadata = self.compute_metadata_inline(&edges);
+        out.push_str(",\"metadata\":");
+        out.push_str(&serde_json::to_string(&metadata).unwrap_or_default());
+        out.push('}');
+        out
+    }
 
-        let mut graph = DependencyGraph {
-            nodes: root_nodes,
-            edges,
-            metadata: GraphMetadata::default(),
+    /// Recursively write the JSON for a single node and its children into `out`.
+    /// Uses `node_json_cache` to avoid re-serializing unchanged nodes.
+    fn write_node_json(&self, out: &mut String, qualname: &str) {
+        let Some(node) = self.definitions.get(qualname) else { return };
+
+        // Get or compute the per-node JSON fragment (all fields except children).
+        // children has #[serde(skip)] so serde_json::to_string omits it entirely.
+        let fragment = {
+            let cache = self.node_json_cache.lock().unwrap();
+            if let Some(frag) = cache.get(qualname) {
+                frag.clone()
+            } else {
+                drop(cache);
+                let frag = serde_json::to_string(node).unwrap_or_default();
+                self.node_json_cache
+                    .lock()
+                    .unwrap()
+                    .insert(qualname.to_string(), frag.clone());
+                frag
+            }
         };
-        graph.compute_metadata();
-        graph
+
+        // Strip the closing `}` and inject `"children":[...]`
+        let base = fragment.trim_end_matches('}');
+        out.push_str(base);
+        out.push_str(",\"children\":[");
+        if let Some(kids) = self.hierarchy_children.get(qualname) {
+            let mut first = true;
+            for child in kids {
+                if self.definitions.contains_key(child.as_str()) {
+                    if !first {
+                        out.push(',');
+                    }
+                    first = false;
+                    self.write_node_json(out, child);
+                }
+            }
+        }
+        out.push_str("]}");
+    }
+
+    /// Compute graph metadata directly from definitions (no DependencyGraph traversal).
+    fn compute_metadata_inline(&self, edges: &[EdgeData]) -> GraphMetadata {
+        let mut node_types: HashMap<String, usize> = HashMap::new();
+        for node in self.definitions.values() {
+            let type_str = format!("{:?}", node.object_type).to_lowercase();
+            *node_types.entry(type_str).or_insert(0) += 1;
+        }
+        GraphMetadata {
+            node_count: self.definitions.len(),
+            edge_count: edges.len(),
+            node_types,
+        }
     }
 
     /// Build hierarchical node structure from flat definitions map

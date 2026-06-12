@@ -113,6 +113,7 @@ impl GraphBuilder {
         }
         self.record_node_contribution(qualname);
         self.ensure_parent_nodes(qualname);
+        self.register_node_in_hierarchy(qualname);
 
         if !node.parameters.is_empty() {
             if let Some(node_data) = self.definitions.get_mut(qualname.as_str()) {
@@ -145,6 +146,7 @@ impl GraphBuilder {
                     self.definitions.insert(def.qualname.clone(), node);
                     self.record_node_contribution(&def.qualname);
                     self.ensure_parent_nodes(&def.qualname);
+                    self.register_node_in_hierarchy(&def.qualname);
                 }
             }
         }
@@ -424,11 +426,21 @@ impl GraphBuilder {
         // Snapshot edge set before this pass so we can compute the net additions.
         let edges_before: std::collections::HashSet<EdgeData> = self.edges.clone();
 
+        // O(N) pre-index: partition binding indices by relationship type so each
+        // pass iterates only its relevant subset rather than scanning all N bindings.
+        let mut by_rel: HashMap<&str, Vec<usize>> = HashMap::new();
+        for (i, b) in bindings.iter().enumerate() {
+            by_rel.entry(b.relationship.as_str()).or_default().push(i);
+        }
+        let empty: &[usize] = &[];
+        let assigned = by_rel.get("ASSIGNED").map_or(empty, Vec::as_slice);
+        let returns   = by_rel.get("RETURNS").map_or(empty, Vec::as_slice);
+        let calls     = by_rel.get("CALLS").map_or(empty, Vec::as_slice);
+
         // Pass 1: ASSIGNED — build has-a edges so the index is fully populated
-        for binding in bindings {
-            if binding.relationship != "ASSIGNED" {
-                continue;
-            }
+        for &idx in assigned {
+            let binding = &bindings[idx];
+            {
             let scope = binding.scope.as_str();
             let source_qualname = binding.source.qualname.as_str();
             let target_text = binding.target.text.as_str();
@@ -531,6 +543,7 @@ impl GraphBuilder {
                         }
                     }
                 }
+            }
         }
 
         // Build edge index from has-a edges so resolve_variable_type is O(1)
@@ -540,10 +553,9 @@ impl GraphBuilder {
         // Runs after edge_caller_index is built so has-a edges are queryable.
         // Populates function_return_types used by resolve_variable_type in the CALLS pass.
         let mut fn_return_types: HashMap<String, Vec<String>> = HashMap::new();
-        for binding in bindings {
-            if binding.relationship != "RETURNS" {
-                continue;
-            }
+        for &idx in returns {
+            let binding = &bindings[idx];
+            {
             let scope = binding.scope.as_str();
             let return_text = binding.target.text.as_str();
 
@@ -596,6 +608,7 @@ impl GraphBuilder {
                             .push(resolved);
                     }
                 }
+            }
             }
         }
 
@@ -658,10 +671,8 @@ impl GraphBuilder {
         //
         // Only handles simple identifier arguments (skips expressions like "a + b").
         let mut constructor_arg_edges: Vec<EdgeData> = Vec::new();
-        for binding in bindings {
-            if binding.relationship != "ASSIGNED" {
-                continue;
-            }
+        for &idx in assigned {
+            let binding = &bindings[idx];
             let scope = binding.scope.as_str();
             let target_text = binding.target.text.as_str();
             let target_category = binding.target.category.as_str();
@@ -727,10 +738,8 @@ impl GraphBuilder {
         // Pass 2.75: PARAM-TYPE — propagate parameter types into class attribute has-a edges.
         // For `self.X = param` inside __init__, if param has a known type (has-a → Class),
         // record Class.X --has-a--> TypeClass so resolve_self_access can follow it.
-        for binding in bindings {
-            if binding.relationship != "ASSIGNED" {
-                continue;
-            }
+        for &idx in assigned {
+            let binding = &bindings[idx];
             let scope = binding.scope.as_str();
             let source_text = binding.source.text.as_str();
             let target_text = binding.target.text.as_str();
@@ -776,10 +785,8 @@ impl GraphBuilder {
         }
 
         // Pass 2: CALLS — resolve call targets using the populated edge index
-        for binding in bindings {
-            if binding.relationship != "CALLS" {
-                continue;
-            }
+        for &idx in calls {
+            let binding = &bindings[idx];
             let scope = binding.scope.as_str();
             {
                 let callee_text = binding.target.text.as_str();

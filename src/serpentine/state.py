@@ -73,7 +73,7 @@ class GraphStateManager:
         """
         self._broadcast_callback = callback
 
-    def analyze_project(self, project_path: Path, changed_files: dict[str, str] | None = None) -> None:
+    def analyze_project(self, project_path: Path, changed_files: dict[str, str] | None = None, *, force_fresh: bool = False) -> None:
         """
         Analyze a project directory and update the graph state.
 
@@ -102,7 +102,7 @@ class GraphStateManager:
                     source_files = self._find_source_files(project_path)
                     cache = CacheManager(project_path, config_path)
                     fp = cache.compute_fingerprint(source_files)
-                    cached_json = cache.load(fp)
+                    cached_json = None if force_fresh else cache.load(fp)
                     if cached_json is not None:
                         self._update_state(cached_json)
                         logger.info(
@@ -111,7 +111,7 @@ class GraphStateManager:
                         if self._broadcast_callback:
                             self._broadcast_callback()
                         return
-                    # Cache miss: full analysis reusing the already-discovered source_files.
+                    # Cache miss (or force_fresh): full analysis reusing already-discovered source_files.
                     self._do_analysis(project_path, source_files)
                     # Save using the fingerprint computed above — no re-scan needed.
                     try:
@@ -486,6 +486,13 @@ class GraphStateManager:
         except json.JSONDecodeError:
             logger.error("Failed to parse graph JSON")
             self._graph_data = {"nodes": [], "edges": [], "metadata": {}}
+
+    def get_node_code(self, qualname: str) -> str | None:
+        """Return the source code block for a node by qualname, or None."""
+        with self._lock:
+            if self._analyzer is None:
+                return None
+            return self._analyzer.get_node_code(qualname)
 
     def get_graph_json(self) -> str:
         """Get the current graph state as a JSON string."""

@@ -76,6 +76,8 @@ export type GraphSlice = {
   resetLayout: () => void;
   filteredEdgeTypes: EdgeType[];
   setFilteredEdgeTypes: (types: EdgeType[]) => void;
+  nodeCodeBlocks: Record<string, string>;
+  setNodeCodeBlock: (nodeId: string, code: string) => void;
 };
 
 export const createGraphSlice: StateCreator<any, [], [], GraphSlice> = (set, get) => ({
@@ -106,6 +108,7 @@ export const createGraphSlice: StateCreator<any, [], [], GraphSlice> = (set, get
   layoutSettings: layoutCache.getLayoutSettings(),
   sidebarExpansionSignal: null,
   filteredEdgeTypes: layoutCache.getDisplaySettings().filteredEdgeTypes ?? ALL_EDGE_TYPES,
+  nodeCodeBlocks: {},
 
   initialize: (nodes, edges = []) => {
 
@@ -404,6 +407,10 @@ export const createGraphSlice: StateCreator<any, [], [], GraphSlice> = (set, get
 
   setWsSend: (fn: (msg: object) => void) => {
     set({ wsSend: fn });
+  },
+
+  setNodeCodeBlock: (nodeId: string, code: string) => {
+    set((state: any) => ({ nodeCodeBlocks: { ...state.nodeCodeBlocks, [nodeId]: code } }));
   },
 
   dismissChange: (nodeId: string) => {

@@ -52,6 +52,8 @@ export default function GraphPage() {
   const exportMermaid = useGraphStore((s) => s.exportMermaid);
   const sidebarExpansionSignal = useGraphStore((s) => s.sidebarExpansionSignal);
   const setSidebarExpansionSignal = useGraphStore((s) => s.setSidebarExpansionSignal);
+  const wsSend = useGraphStore((s) => s.wsSend);
+  const nodeCodeBlocks = useGraphStore((s) => s.nodeCodeBlocks);
 
   // PDG slice
   const pdgFlatNodes = useGraphStore((s) => s.pdgFlatNodes);
@@ -155,6 +157,8 @@ export default function GraphPage() {
       findNodeById={(id) => findNodeById(id) ?? undefined}
       selectNode={selectNode}
       expandParentNodes={expandParentNodes}
+      loadedCodeBlock={nodeCodeBlocks[selectedNode.id] ?? null}
+      requestNodeCode={(nodeId) => wsSend?.({ action: "get_node_code", data: { qualname: nodeId } })}
     />
   ) : undefined;
 

@@ -285,7 +285,7 @@ def analyze(
     """
     project_path = Path(path).resolve()
     state_manager = GraphStateManager(project_path)
-    state_manager.analyze_project(project_path)
+    state_manager.analyze_project(project_path, force_fresh=source)
 
     # Get the graph data as a dict for post-processing
     graph_data = state_manager.get_graph_data()
@@ -336,7 +336,7 @@ def analyze(
                 rel = _rel_path(node.get("file_path", ""), project_path_obj)
                 lines.append(f"## {node_id}  [{object_type}]  {rel}:{pos[0]}-{pos[1]}")
                 if object_type in {"function", "class"}:
-                    code = node.get("code_block", "")
+                    code = node.get("code_block") or state_manager.get_node_code(node_id) or ""
                     if code:
                         lines.append(code)
                 for e in edges_by_caller.get(node_id, []):

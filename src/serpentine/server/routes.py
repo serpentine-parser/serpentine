@@ -224,6 +224,13 @@ def create_routes(
                     await connection_manager.send_graph_update(
                         state_manager.get_graph_json()
                     )
+                elif data.get("action") == "get_node_code":
+                    qualname = data.get("data", {}).get("qualname", "")
+                    code = state_manager.get_node_code(qualname)
+                    await websocket.send_json({
+                        "type": "node_code",
+                        "data": {"qualname": qualname, "code": code},
+                    })
                 else:
                     logger.debug(f"Unknown message type: {data.get('type')}")
 

@@ -252,28 +252,22 @@ impl GraphBuilder {
     pub(crate) fn ensure_parent_nodes(&mut self, qualname: &str) {
         let parts: Vec<&str> = qualname.split('.').collect();
 
-        // Build all ancestor qualnames
+        // Build all ancestor qualnames (shallowest first so parents exist when
+        // register_node_in_hierarchy checks for them below).
         for i in 1..parts.len() {
             let parent_qualname = parts[0..i].join(".");
 
             if !self.definitions.contains_key(&parent_qualname) {
-                // Determine if this should be a module or something else
-                let object_type = if i == 1 {
-                    // Top level is always a module
-                    ObjectType::Module
-                } else {
-                    // For multi-level, check if it looks like a package or infer from children
-                    ObjectType::Module
-                };
+                let object_type = ObjectType::Module;
 
                 let mut parent_node = NodeData::new(&parent_qualname, object_type);
 
-                // Set origin if this looks like a root module
                 if i == 1 {
                     parent_node.origin = Some(self.classify_module(&parent_qualname));
                 }
 
-                self.definitions.insert(parent_qualname, parent_node);
+                self.definitions.insert(parent_qualname.clone(), parent_node);
+                self.register_node_in_hierarchy(&parent_qualname);
             }
         }
     }
@@ -311,12 +305,14 @@ impl GraphBuilder {
                 let mut builtins_module = NodeData::new("builtins", ObjectType::Module);
                 builtins_module.origin = Some(Origin::Standard);
                 self.definitions.insert("builtins".to_string(), builtins_module);
+                self.register_node_in_hierarchy("builtins");
             }
 
             // Create the builtin function as a child of builtins
             let mut node = NodeData::new(qualname, ObjectType::Function);
             node.origin = Some(Origin::Standard);
             self.definitions.insert(qualname.to_string(), node);
+            self.register_node_in_hierarchy(qualname);
             return;
         }
 
@@ -334,6 +330,7 @@ impl GraphBuilder {
         node.origin = Some(self.classify_module(qualname));
         self.definitions.insert(qualname.to_string(), node);
         self.ensure_parent_nodes(qualname);
+        self.register_node_in_hierarchy(qualname);
     }
 
     /// Convert a file path to a module qualname

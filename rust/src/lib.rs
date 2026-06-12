@@ -543,7 +543,7 @@ impl FileManager {
             run_global_raw_bindings(&mut builder);
 
             let t = profile.then(Instant::now);
-            let json = builder.snapshot().to_json();
+            let json = builder.snapshot();
             if let Some(t) = t { eprintln!("[PROFILE] snapshot: {:.1}ms", t.elapsed().as_secs_f64() * 1000.0); }
 
             builder.cached_snapshot = Some(json.clone());
@@ -558,7 +558,7 @@ impl FileManager {
             if let Some(ref cached) = builder.cached_snapshot {
                 return Ok(cached.clone());
             }
-            let json = builder.snapshot().to_json();
+            let json = builder.snapshot();
             builder.cached_snapshot = Some(json.clone());
             return Ok(json);
         }
@@ -581,7 +581,7 @@ impl FileManager {
         run_global_raw_bindings(builder);
 
         let t = profile.then(Instant::now);
-        let json = builder.snapshot().to_json();
+        let json = builder.snapshot();
         if let Some(t) = t { eprintln!("[PROFILE] snapshot: {:.1}ms", t.elapsed().as_secs_f64() * 1000.0); }
 
         builder.cached_snapshot = Some(json.clone());
@@ -616,6 +616,14 @@ impl FileManager {
             .map_err(pyo3::exceptions::PyRuntimeError::new_err)?;
         self.files.insert(pb, entry);
         Ok(())
+    }
+
+    /// Return the source code block for a node by qualname, or None if not found.
+    fn get_node_code(&self, qualname: &str) -> Option<String> {
+        self.graph_builder
+            .as_ref()
+            .and_then(|b| b.definitions.get(qualname))
+            .and_then(|n| n.code_block.as_deref().map(str::to_string))
     }
 
     /// Serialize a file's cached subscriber results to JSON for per-file caching.
