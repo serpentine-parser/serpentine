@@ -295,8 +295,6 @@ pub struct FileManager {
     graph_builder: Option<GraphBuilder>,
 }
 
-/// Per-type subscriber data tagged with the originating file path.
-
 /// Run all load passes for the given per-file data against `builder`.
 /// Sets `current_file` before each file's data and clears it after.
 /// This is the "assert" path — adds to existing state rather than replacing.

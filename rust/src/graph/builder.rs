@@ -68,8 +68,6 @@ pub struct GraphBuilder {
     /// File currently being loaded. Set before each load call, cleared after.
     /// Used by load_* methods to attribute contributions without extra parameters.
     pub(crate) current_file: Option<PathBuf>,
-    /// Cached hierarchical nodes from the last build. None when rebuild needed.
-    pub(crate) cached_hierarchy: Option<Vec<NodeData>>,
     /// Cached JSON snapshot from the last completed build. Cleared when any
     /// file is retracted (i.e., on the first dirty-file build after a change).
     pub(crate) cached_snapshot: Option<String>,
@@ -118,7 +116,6 @@ impl GraphBuilder {
             file_contributions: HashMap::new(),
             dirty_files: HashSet::new(),
             current_file: None,
-            cached_hierarchy: None,
             cached_snapshot: None,
             hierarchy_children: IndexMap::new(),
             hierarchy_roots: IndexSet::new(),
@@ -303,7 +300,7 @@ impl GraphBuilder {
                 // before any string that is lexicographically >= "caller" + char > '.'.
                 let idx = callers.partition_point(|&c| c <= caller);
                 // Check if the entry at idx starts with "caller." without allocating
-                if callers.get(idx).map_or(false, |&c| {
+                if callers.get(idx).is_some_and(|&c| {
                     c.len() > caller.len()
                         && c.as_bytes().get(caller.len()) == Some(&b'.')
                         && c.starts_with(caller)
@@ -414,8 +411,7 @@ impl GraphBuilder {
         out.push_str(base);
         out.push_str(",\"children\":[");
         let kids: Vec<String> = self.hierarchy_children
-            .get(qualname)
-            .map(|v| v.clone())
+            .get(qualname).cloned()
             .unwrap_or_default();
         let mut first = true;
         for child in &kids {
@@ -442,53 +438,4 @@ impl GraphBuilder {
         }
     }
 
-    /// Build hierarchical node structure from flat definitions map
-    pub(crate) fn build_hierarchy(definitions: HashMap<String, NodeData>) -> Vec<NodeData> {
-        let mut definitions = definitions;
-
-        // Sort qualnames by depth (parents before children)
-        let mut qualnames: Vec<String> = definitions.keys().cloned().collect();
-        qualnames.sort_by(|a, b| {
-            let depth_a = a.matches('.').count();
-            let depth_b = b.matches('.').count();
-            depth_a.cmp(&depth_b).then_with(|| a.cmp(b))
-        });
-
-        // Track which nodes have been added as children
-        let mut added_as_child: HashSet<String> = HashSet::new();
-        let mut root_nodes: Vec<NodeData> = Vec::new();
-
-        // First pass: identify which nodes should be children
-        for qualname in &qualnames {
-            if let Some((parent_qualname, _)) = qualname.rsplit_once('.') {
-                if definitions.contains_key(parent_qualname) {
-                    added_as_child.insert(qualname.clone());
-                }
-            }
-        }
-
-        // Second pass: add children to parents (process deepest first)
-        for qualname in qualnames.iter().rev() {
-            if added_as_child.contains(qualname) {
-                if let Some((parent_qualname, _)) = qualname.rsplit_once('.') {
-                    if let Some(child_node) = definitions.remove(qualname) {
-                        if let Some(parent_node) = definitions.get_mut(parent_qualname) {
-                            parent_node.children.push(child_node);
-                        }
-                    }
-                }
-            }
-        }
-
-        // Collect remaining root nodes
-        for qualname in &qualnames {
-            if !added_as_child.contains(qualname) {
-                if let Some(node) = definitions.remove(qualname) {
-                    root_nodes.push(node);
-                }
-            }
-        }
-
-        root_nodes
-    }
 }

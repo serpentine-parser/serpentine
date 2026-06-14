@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::path::Path;
 use std::sync::Arc;
 
 use serde_json::Value;
@@ -132,7 +133,7 @@ impl GraphBuilder {
     /// Load and process definitions subscriber output
     /// This adds variable definitions and enriches existing nodes
     pub fn load_definitions(&mut self, data: &Definitions) {
-        for (_scope, defs) in &data.definitions_by_scope {
+        for defs in data.definitions_by_scope.values() {
             for def in defs {
                 if def.qualname.is_empty() {
                     continue;
@@ -152,28 +153,6 @@ impl GraphBuilder {
         }
     }
 
-    /// Load and process uses to create edges for variable/constant access
-    pub fn load_uses(&mut self, data: &Uses) {
-        for (scope, uses) in data {
-            for use_item in uses {
-                let name = &use_item.name;
-                if name.starts_with("__") || name == "self" || name == "cls" {
-                    continue;
-                }
-                if let Some(resolved) = self.resolve_uses_target(scope, name) {
-                    if self.definitions.contains_key(scope.as_str())
-                        && self.definitions.contains_key(&resolved)
-                    {
-                        if !scope.starts_with(&format!("{}.", resolved)) {
-                            let edge = EdgeData::new(scope, &resolved, "references");
-                            self.record_edge_contribution(edge.clone());
-                            self.edges.insert(edge);
-                        }
-                    }
-                }
-            }
-        }
-    }
 }
 
 /// Resolve uses for a single file's `Uses` map using only read-only state.
@@ -185,7 +164,7 @@ pub(crate) fn resolve_uses_for_file(
     import_bindings: &HashMap<String, String>,
     definitions: &HashMap<String, NodeData>,
     data: &Uses,
-    file_path: &std::path::PathBuf,
+    file_path: &Path,
 ) -> Vec<(EdgeData, std::path::PathBuf)> {
     let mut result = Vec::new();
     for (scope, uses) in data {
@@ -201,7 +180,7 @@ pub(crate) fn resolve_uses_for_file(
                 {
                     result.push((
                         EdgeData::new(scope, &resolved, "references"),
-                        file_path.clone(),
+                        file_path.to_path_buf(),
                     ));
                 }
             }
@@ -973,24 +952,6 @@ impl GraphBuilder {
         // This includes edges added by ASSIGNED, CALLS, and surviving RETYPE edges,
         // but excludes per-file edges that existed before this call.
         self.raw_binding_edges = self.edges.difference(&edges_before).cloned().collect();
-    }
-
-    /// Load PDG data and attach to function and module nodes
-    pub fn load_pdgs(&mut self, data: &Value) {
-        if let Some(pdgs) = data.get("pdgs").and_then(|c| c.as_object()) {
-            for (qualname, pdg_data) in pdgs {
-                // Attach complete PDG (nodes + edges) to the corresponding node
-                if let Some(node) = self.definitions.get_mut(qualname) {
-                    match node.object_type {
-                        ObjectType::Function | ObjectType::Module => {
-                            // Store the complete pdg object with both nodes and edges
-                            node.pdg = Some(Arc::new(pdg_data.clone()));
-                        }
-                        _ => {}
-                    }
-                }
-            }
-        }
     }
 
     /// Load code snippet data and populate `code_block` on each node.

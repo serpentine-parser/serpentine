@@ -95,24 +95,6 @@ impl GraphBuilder {
         })
     }
 
-    /// Resolve a uses target (variable/constant name) to its qualname.
-    pub(crate) fn resolve_uses_target(&self, scope: &str, name: &str) -> Option<String> {
-        if name.is_empty() {
-            return None;
-        }
-
-        // For dotted names, check if it exists as-is first
-        if name.contains('.') {
-            if self.definitions.contains_key(name) {
-                return Some(name.to_string());
-            }
-            return None;
-        }
-
-        // Simple name — use LEGB
-        self.resolve_name_legb(scope, name)
-    }
-
     /// Resolve a callee name to a full qualname of an actual definition
     pub(crate) fn resolve_callee(&self, scope: &str, callee_text: &str) -> Option<String> {
         if callee_text.is_empty() {
