@@ -41,41 +41,58 @@ impl GraphBuilder {
             return None;
         }
 
-        // L + E + G: Walk up scope hierarchy from innermost to outermost
-        let scope_parts: Vec<&str> = scope.split('.').collect();
-        for i in (1..=scope_parts.len()).rev() {
-            let prefix = scope_parts[..i].join(".");
-            let candidate = format!("{}.{}", prefix, name);
+        // Thread-local scratch buffer: avoids a String allocation per scope level.
+        // We build "prefix.name" in-place and call HashMap::get(&str), which only
+        // allocates when the lookup actually succeeds (returning Some(clone)).
+        thread_local! {
+            static BUF: std::cell::RefCell<String> = std::cell::RefCell::new(String::with_capacity(256));
+        }
 
-            // Check definitions first (local/enclosing definitions take priority).
-            // Skip Module-type definitions: a submodule `foo.bar` existing does NOT
-            // mean `bar` is in `foo`'s namespace — only an explicit import binding
-            // makes it so. Allowing module lookups here causes parameter/variable
-            // names that happen to match a submodule name to resolve to that module.
-            if let Some(def) = self.definitions.get(&candidate) {
-                if def.object_type != ObjectType::Module {
-                    return Some(candidate);
+        BUF.with(|cell| {
+            let mut buf = cell.borrow_mut();
+
+            // L + E + G: Walk up scope hierarchy from innermost to outermost.
+            // Use rfind('.') to peel one component at a time — no Vec or join needed.
+            let mut prefix = scope;
+            loop {
+                buf.clear();
+                buf.push_str(prefix);
+                buf.push('.');
+                buf.push_str(name);
+
+                // Check definitions first.
+                // Skip Module-type: a submodule `foo.bar` does NOT mean `bar` is in
+                // `foo`'s namespace — only an explicit import binding makes it so.
+                if let Some(def) = self.definitions.get(buf.as_str()) {
+                    if def.object_type != ObjectType::Module {
+                        return Some(buf.clone());
+                    }
+                }
+
+                // Check import bindings (module-level imported names)
+                if let Some(resolved) = self.import_bindings.get(buf.as_str()) {
+                    return Some(resolved.clone());
+                }
+
+                match prefix.rfind('.') {
+                    Some(dot) => prefix = &prefix[..dot],
+                    None => break,
                 }
             }
 
-            // Check import bindings (module-level imported names)
-            if let Some(resolved) = self.import_bindings.get(&candidate) {
-                return Some(resolved.clone());
+            // B: Builtins
+            for config in &self.lang_configs {
+                if config.is_stdlib(name) {
+                    return Some(name.to_string());
+                }
             }
-        }
 
-        // B: Builtins
-        for config in &self.lang_configs {
-            if config.is_stdlib(name) {
-                return Some(name.to_string());
+            if is_python_builtin(name) {
+                return Some(format!("builtins.{}", name));
             }
-        }
 
-        if is_python_builtin(name) {
-            return Some(format!("builtins.{}", name));
-        }
-
-        None
+            None
+        })
     }
 
     /// Resolve a uses target (variable/constant name) to its qualname.
@@ -102,25 +119,31 @@ impl GraphBuilder {
             return None;
         }
 
-        let parts: Vec<&str> = callee_text.split('.').collect();
-        let first = parts[0];
+        // Fast path: no dot → simple LEGB lookup (avoids Vec allocation entirely)
+        let Some(first_dot) = callee_text.find('.') else {
+            return self.resolve_name_legb(scope, callee_text);
+        };
+
+        let first = &callee_text[..first_dot];
 
         // Handle "self.something" — resolve to class method/attribute
-        if first == "self" && parts.len() > 1 {
-            return self.resolve_self_access(scope, &parts[1..]);
+        if first == "self" {
+            let parts: Vec<&str> = callee_text[first_dot + 1..].split('.').collect();
+            return self.resolve_self_access(scope, &parts);
         }
 
         // LEGB Resolution for the first part
         let resolved_base = self.resolve_name_legb(scope, first)?;
 
-        if parts.len() == 1 {
-            // Simple call like Config() or print()
-            return Some(resolved_base);
-        }
-
-        // Dotted call like foo.bar.baz() — resolve remaining parts
+        // Dotted call like foo.bar.baz() — resolve remaining parts without Vec
         let mut current = resolved_base;
-        for part in &parts[1..] {
+        let mut rest = &callee_text[first_dot + 1..];
+        loop {
+            let (part, tail) = match rest.find('.') {
+                Some(p) => (&rest[..p], Some(&rest[p + 1..])),
+                None    => (rest, None),
+            };
+
             let candidate = format!("{}.{}", current, part);
             if self.definitions.contains_key(&candidate) {
                 current = candidate;
@@ -130,19 +153,21 @@ impl GraphBuilder {
                     let type_candidate = format!("{}.{}", type_qualname, part);
                     if self.definitions.contains_key(&type_candidate) {
                         current = type_candidate;
+                        rest = match tail { Some(t) => t, None => break };
                         continue;
                     }
                 }
                 // For external modules (not in local_prefixes), build a stub path.
-                // The caller (CALLS/ASSIGNED pass) will call ensure_external_node on
-                // the returned name, creating the stub node so the edge fires.
                 let top = current.split('.').next().unwrap_or(&current);
                 if !self.local_prefixes.contains(top) {
                     current = format!("{}.{}", current, part);
+                    rest = match tail { Some(t) => t, None => break };
                     continue;
                 }
                 return None;
             }
+
+            rest = match tail { Some(t) => t, None => break };
         }
 
         Some(current)

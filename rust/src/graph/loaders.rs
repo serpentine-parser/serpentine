@@ -174,6 +174,82 @@ impl GraphBuilder {
             }
         }
     }
+}
+
+/// Resolve uses for a single file's `Uses` map using only read-only state.
+///
+/// This free function is `Send`-safe — it borrows only `HashMap` references and
+/// avoids `GraphBuilder` entirely (which is `!Send` due to `lang_configs`).
+/// Callers collect the returned edges and commit them serially.
+pub(crate) fn resolve_uses_for_file(
+    import_bindings: &HashMap<String, String>,
+    definitions: &HashMap<String, NodeData>,
+    data: &Uses,
+    file_path: &std::path::PathBuf,
+) -> Vec<(EdgeData, std::path::PathBuf)> {
+    let mut result = Vec::new();
+    for (scope, uses) in data {
+        for use_item in uses {
+            let name = &use_item.name;
+            if name.starts_with("__") || name == "self" || name == "cls" {
+                continue;
+            }
+            if let Some(resolved) = resolve_name_legb_readonly(import_bindings, definitions, scope, name) {
+                if definitions.contains_key(scope.as_str())
+                    && definitions.contains_key(&resolved)
+                    && !scope.starts_with(&format!("{}.", resolved))
+                {
+                    result.push((
+                        EdgeData::new(scope, &resolved, "references"),
+                        file_path.clone(),
+                    ));
+                }
+            }
+        }
+    }
+    result
+}
+
+/// LEGB name resolution using only `import_bindings` and `definitions`.
+///
+/// Mirrors `GraphBuilder::resolve_name_legb` but omits the stdlib/builtin (B) step.
+/// For `load_uses`, any name that resolves to a builtin won't pass the
+/// `definitions.contains_key` gate anyway, so skipping B is safe here.
+fn resolve_name_legb_readonly(
+    import_bindings: &HashMap<String, String>,
+    definitions: &HashMap<String, NodeData>,
+    scope: &str,
+    name: &str,
+) -> Option<String> {
+    if name.is_empty() || name.contains('.') {
+        // Dotted names: check existence directly
+        if !name.is_empty() && definitions.contains_key(name) {
+            return Some(name.to_string());
+        }
+        return None;
+    }
+
+    let scope_parts: Vec<&str> = scope.split('.').collect();
+    for i in (1..=scope_parts.len()).rev() {
+        let prefix = scope_parts[..i].join(".");
+        let candidate = format!("{}.{}", prefix, name);
+
+        if let Some(def) = definitions.get(&candidate) {
+            if def.object_type != ObjectType::Module {
+                return Some(candidate);
+            }
+        }
+
+        if let Some(resolved) = import_bindings.get(&candidate) {
+            return Some(resolved.clone());
+        }
+    }
+
+    None
+}
+
+// Re-open impl block for remaining methods
+impl GraphBuilder {
 
     /// Load decorator events and emit graph edges.
     ///

@@ -19,7 +19,7 @@ mod terraform;
 use crate::javascript::{parse as parse_javascript, JsLang};
 use crate::javascript::config::JsConfig;
 use crate::message_bus::{MessageBus, SubscriberResult};
-use crate::graph::GraphBuilder;
+use crate::graph::{GraphBuilder, EdgeData};
 use crate::python::parse as parse_python;
 use crate::python::config::PythonConfig;
 use crate::rust_lang::parse as parse_rust;
@@ -375,13 +375,33 @@ fn assert_files(builder: &mut GraphBuilder, paths: &[PathBuf], files: &HashMap<P
     if let Some(t) = t { eprintln!("[PROFILE] resolve_inheritance_edges: {:.1}ms", t.elapsed().as_secs_f64() * 1000.0); }
 
     let t = profile.then(Instant::now);
-    for path in paths {
-        if let Some(entry) = files.get(path) {
-            builder.current_file = Some(path.clone());
-            builder.load_uses(&entry.typed_data.uses);
+    {
+        // Parallel resolution phase: only read-only HashMap refs are shared (Send-safe).
+        // GraphBuilder is !Send due to lang_configs, so we pass fields directly.
+        let import_bindings = &builder.import_bindings;
+        let definitions = &builder.definitions;
+        let all_edges: Vec<(EdgeData, PathBuf)> = paths
+            .par_iter()
+            .filter_map(|path| {
+                files.get(path).map(|entry| {
+                    crate::graph::loaders::resolve_uses_for_file(
+                        import_bindings,
+                        definitions,
+                        &entry.typed_data.uses,
+                        path,
+                    )
+                })
+            })
+            .flatten()
+            .collect();
+        // Serial commit: insert edges and record contributions
+        for (edge, path) in all_edges {
+            builder.current_file = Some(path);
+            builder.record_edge_contribution(edge.clone());
+            builder.edges.insert(edge);
         }
+        builder.current_file = None;
     }
-    builder.current_file = None;
     if let Some(t) = t { eprintln!("[PROFILE] load_uses: {:.1}ms", t.elapsed().as_secs_f64() * 1000.0); }
 
     let t = profile.then(Instant::now);
@@ -394,13 +414,15 @@ fn assert_files(builder: &mut GraphBuilder, paths: &[PathBuf], files: &HashMap<P
     builder.current_file = None;
     if let Some(t) = t { eprintln!("[PROFILE] load_decorators: {:.1}ms", t.elapsed().as_secs_f64() * 1000.0); }
 
-    // Store typed raw_bindings per file for global re-merge
+    // Store typed raw_bindings per file for global re-merge; also store a hash
+    // so the incremental path can skip the global re-run when nothing changed.
     for path in paths {
         if let Some(entry) = files.get(path) {
-            builder.file_contributions
-                .entry(path.clone())
-                .or_default()
-                .raw_bindings = entry.typed_data.raw_bindings.clone();
+            let bindings = entry.typed_data.raw_bindings.clone();
+            let hash = hash_raw_bindings(&bindings);
+            let fc = builder.file_contributions.entry(path.clone()).or_default();
+            fc.raw_bindings = bindings;
+            fc.raw_bindings_hash = hash;
         }
     }
 
@@ -413,6 +435,22 @@ fn assert_files(builder: &mut GraphBuilder, paths: &[PathBuf], files: &HashMap<P
     }
     builder.current_file = None;
     if let Some(t) = t { eprintln!("[PROFILE] load_imports: {:.1}ms", t.elapsed().as_secs_f64() * 1000.0); }
+}
+
+/// Hash the key fields of a file's raw bindings for change detection.
+/// Only scopes, relationships, and target texts are hashed — sufficient to
+/// detect any change that would affect edge resolution.
+fn hash_raw_bindings(bindings: &[crate::subscribers::RawBinding]) -> u64 {
+    use std::hash::{Hash, Hasher};
+    let mut h = DefaultHasher::new();
+    for b in bindings {
+        b.scope.hash(&mut h);
+        b.relationship.hash(&mut h);
+        b.source.qualname.hash(&mut h);
+        b.target.text.hash(&mut h);
+        b.target.category.hash(&mut h);
+    }
+    h.finish()
 }
 
 /// Run the global load_raw_bindings pass using stored per-file typed raw_bindings.
@@ -568,17 +606,36 @@ impl FileManager {
         // ----------------------------------------------------------------
         let dirty_paths: Vec<PathBuf> = builder.dirty_files.drain().collect();
 
+        // Capture old raw_bindings hashes BEFORE retract so we can compare after re-assert
+        let old_rb_hashes: HashMap<PathBuf, u64> = dirty_paths.iter()
+            .filter_map(|p| {
+                builder.file_contributions.get(p)
+                    .map(|fc| (p.clone(), fc.raw_bindings_hash))
+            })
+            .collect();
+
         // Retract all dirty files first so their stale contributions are gone
         for path in &dirty_paths {
             builder.retract_file(path);
         }
 
-        // Re-assert dirty files (re-run load passes for changed files only)
+        // Re-assert dirty files (re-run per-file load passes for changed files only)
         assert_files(builder, &dirty_paths, &self.files);
 
-        // Re-run the global raw_bindings pass now that per-file raw_bindings are updated
-        builder.clear_raw_binding_edges();
-        run_global_raw_bindings(builder);
+        // Check whether raw_bindings changed for any dirty file.
+        // If unchanged, skip the expensive global re-run (saves ~5s on trivial edits).
+        let raw_bindings_changed = dirty_paths.iter().any(|p| {
+            let old = old_rb_hashes.get(p).copied().unwrap_or(u64::MAX);
+            let new_h = builder.file_contributions.get(p)
+                .map_or(0, |fc| fc.raw_bindings_hash);
+            old != new_h
+        });
+
+        if raw_bindings_changed {
+            builder.clear_raw_binding_edges();
+            run_global_raw_bindings(builder);
+        }
+        // else: raw_binding_edges and cached_edges_json remain valid
 
         let t = profile.then(Instant::now);
         let json = builder.snapshot();

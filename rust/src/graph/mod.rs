@@ -16,7 +16,7 @@ use serde::{Deserialize, Serialize};
 
 mod builder;
 mod pdg;
-mod loaders;
+pub(crate) mod loaders;
 mod resolvers;
 
 pub use builder::GraphBuilder;
