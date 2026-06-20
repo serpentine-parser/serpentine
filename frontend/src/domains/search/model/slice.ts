@@ -7,7 +7,6 @@ export type SearchSlice = {
   excludeQuery: string;
   selectorQuery: string;
   selectorExclude: string;
-  selectorState: string;
   includeStandardPackages: boolean;
   includeThirdPartyPackages: boolean;
   visibleEdgeDepth: number;
@@ -16,7 +15,6 @@ export type SearchSlice = {
   setExcludeQuery: (query: string) => void;
   setSelectorQuery: (query: string) => void;
   setSelectorExclude: (query: string) => void;
-  setStateFilter: (state: string) => void;
   setIncludeStandardPackages: (include: boolean) => void;
   setIncludeThirdPartyPackages: (include: boolean) => void;
   setVisibleEdgeDepth: (depth: number) => void;
@@ -32,7 +30,6 @@ export const createSearchSlice: StateCreator<any, [], [], SearchSlice> = (set, g
   excludeQuery: layoutCache.getDisplaySettings().selectorExclude ?? "",
   selectorQuery: layoutCache.getDisplaySettings().selectorQuery ?? "",
   selectorExclude: layoutCache.getDisplaySettings().selectorExclude ?? "",
-  selectorState: "",
   includeStandardPackages: layoutCache.getDisplaySettings().includeStandardPackages ?? false,
   includeThirdPartyPackages: layoutCache.getDisplaySettings().includeThirdPartyPackages ?? false,
   visibleEdgeDepth: layoutCache.getDisplaySettings().visibleEdgeDepth ?? Infinity,
@@ -53,10 +50,6 @@ export const createSearchSlice: StateCreator<any, [], [], SearchSlice> = (set, g
   setSelectorExclude: (query: string) => {
     set({ selectorExclude: query });
     layoutCache.saveDisplaySettings({ selectorExclude: query });
-  },
-
-  setStateFilter: (state: string) => {
-    set({ selectorState: state });
   },
 
   setIncludeStandardPackages: (include: boolean) => {

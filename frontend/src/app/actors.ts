@@ -24,7 +24,7 @@ export const wsActor = createActor(
           // The WS always sends the full unfiltered graph, so we only set the base key.
           if (event.payload.data) {
             queryClient.setQueryData(
-              ['graph', '', '', ''],
+              ['graph', '', ''],
               // eslint-disable-next-line @typescript-eslint/no-explicit-any
               transformData(event.payload.data as any),
             );
@@ -34,8 +34,8 @@ export const wsActor = createActor(
           queryClient.invalidateQueries({
             queryKey: ['graph'],
             predicate: (query) => {
-              const [, select, exclude, state] = query.queryKey as string[];
-              return !!(select || exclude || state);
+              const [, select, exclude] = query.queryKey as string[];
+              return !!(select || exclude);
             },
           });
 

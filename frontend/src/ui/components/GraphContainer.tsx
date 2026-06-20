@@ -1,4 +1,4 @@
-import type { Node, Edge, Viewport, ZoomBounds } from "@domains/graph/model/types";
+import type { Edge, Node, Viewport, ZoomBounds } from "@domains/graph/model/types";
 import { Graph } from "./Graph";
 import { LoadingOverlay } from "./LoadingOverlay";
 

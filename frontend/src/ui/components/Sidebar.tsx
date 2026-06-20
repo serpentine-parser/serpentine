@@ -1,25 +1,24 @@
+import { Node } from "@domains/graph/model/types";
 import {
-  IconArrowsMaximize,
-  IconArrowsMinimize,
-  IconBraces,
-  IconChevronLeft,
-  IconChevronRight,
-  IconCircleDot,
-  IconFile,
-  IconFolder,
-  IconFolderOpen,
-  IconFunction,
-  IconGitBranch,
-  IconGitMerge,
-  IconHierarchy2,
-  IconLayoutGrid,
-  IconPlayerPlay,
-  IconSearch,
-  IconVariable,
-  IconX,
+    IconArrowsMaximize,
+    IconArrowsMinimize,
+    IconBraces,
+    IconChevronLeft,
+    IconChevronRight,
+    IconCircleDot,
+    IconFile,
+    IconFolder,
+    IconFolderOpen,
+    IconFunction,
+    IconGitBranch,
+    IconGitMerge,
+    IconLayoutGrid,
+    IconPlayerPlay,
+    IconSearch,
+    IconVariable,
+    IconX
 } from "@tabler/icons-react";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Node } from "@domains/graph/model/types";
 
 type ChangeStatusEntry = { changeStatus?: string; isGhost?: boolean };
 

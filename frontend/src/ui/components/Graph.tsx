@@ -1,6 +1,6 @@
+import type { Edge as EdgeData, Node, Viewport, ZoomBounds } from "@domains/graph/model/types";
 import * as d3 from "d3";
 import { useEffect, useMemo, useRef } from "react";
-import type { Node, Edge as EdgeData, Viewport, ZoomBounds } from "@domains/graph/model/types";
 import Edge from "./viewNodes/Edge";
 import NodeGroup from "./viewNodes/NodeGroup";
 import { SvgNodeContextMenu } from "./viewNodes/SvgNodeContextMenu";

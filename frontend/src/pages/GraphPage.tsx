@@ -73,8 +73,6 @@ export default function GraphPage() {
   const executeSearch = useGraphStore((s) => s.executeSearch);
   const selectorQuery = useGraphStore((s) => s.selectorQuery);
   const selectorExclude = useGraphStore((s) => s.selectorExclude);
-  const selectorState = useGraphStore((s) => s.selectorState);
-  const setStateFilter = useGraphStore((s) => s.setStateFilter);
   const includeStandardPackages = useGraphStore((s) => s.includeStandardPackages);
   const includeThirdPartyPackages = useGraphStore((s) => s.includeThirdPartyPackages);
   const setIncludeStandardPackages = useGraphStore((s) => s.setIncludeStandardPackages);
@@ -103,8 +101,8 @@ export default function GraphPage() {
   const activeExclude = selectorExclude || urlParams.exclude;
 
   const { data, isFetching } = useQuery({
-    queryKey: ['graph', activeSelect, activeExclude, selectorState],
-    queryFn: () => loadData(activeSelect || undefined, activeExclude || undefined, selectorState || undefined),
+    queryKey: ['graph', activeSelect, activeExclude],
+    queryFn: () => loadData(activeSelect || undefined, activeExclude || undefined),
   });
 
   const loadingPhase: "data" | "layout" | null = isFetching ? "data" : storeLoadingPhase;
@@ -227,8 +225,6 @@ export default function GraphPage() {
                 setVisibleEdgeDepth={setVisibleEdgeDepth}
                 filteredEdgeTypes={filteredEdgeTypes}
                 setFilteredEdgeTypes={setFilteredEdgeTypes}
-                selectorState={selectorState}
-                setStateFilter={setStateFilter}
                 onExportJson={handleExportJson}
               />
             </div>
