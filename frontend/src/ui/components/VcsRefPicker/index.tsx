@@ -31,11 +31,13 @@ interface RefDropdownProps {
 function RefDropdown({ label, value, refs, hideStart, hideCurrent, onChange }: RefDropdownProps) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState('');
+  const [activeIndex, setActiveIndex] = useState(-1);
   const containerRef = useRef<HTMLDivElement>(null);
   const searchRef = useRef<HTMLInputElement>(null);
+  const listRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (!open) { setSearch(''); return; }
+    if (!open) { setSearch(''); setActiveIndex(-1); return; }
     searchRef.current?.focus();
     const handler = (e: MouseEvent) => {
       if (containerRef.current && !containerRef.current.contains(e.target as Node)) setOpen(false);
@@ -51,7 +53,38 @@ function RefDropdown({ label, value, refs, hideStart, hideCurrent, onChange }: R
   const tags = refs.filter((r) => r.kind === 'tag' && match(r));
   const commits = refs.filter((r) => r.kind === 'commit' && match(r));
 
+  // Flat ordered list of selectable values for keyboard navigation
+  const items: RefSelection[] = [
+    ...(!hideCurrent && (!q || 'current live'.includes(q)) ? ['@current' as RefSelection] : []),
+    ...(!hideStart && (!q || 'checkpoint'.includes(q)) ? ['@start' as RefSelection] : []),
+    ...branches.map((r) => r.id),
+    ...tags.map((r) => r.id),
+    ...commits.map((r) => r.id),
+  ];
+
   const select = (v: RefSelection) => { onChange(v); setOpen(false); };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      setActiveIndex((i) => Math.min(i + 1, items.length - 1));
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      setActiveIndex((i) => Math.max(i - 1, -1));
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      if (activeIndex >= 0 && items[activeIndex]) select(items[activeIndex]);
+    } else if (e.key === 'Escape') {
+      setOpen(false);
+    }
+  };
+
+  // Scroll active item into view
+  useEffect(() => {
+    if (activeIndex < 0 || !listRef.current) return;
+    const el = listRef.current.querySelectorAll<HTMLElement>('[data-item]')[activeIndex];
+    el?.scrollIntoView({ block: 'nearest' });
+  }, [activeIndex]);
 
   return (
     <div ref={containerRef} className="relative">
@@ -71,19 +104,20 @@ function RefDropdown({ label, value, refs, hideStart, hideCurrent, onChange }: R
               ref={searchRef}
               type="text"
               value={search}
-              onChange={(e) => setSearch(e.target.value)}
+              onChange={(e) => { setSearch(e.target.value); setActiveIndex(-1); }}
+              onKeyDown={handleKeyDown}
               placeholder="Search…"
               className="w-full px-2 py-1 text-xs rounded border border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-900 text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-emerald-500"
             />
           </div>
-          <div className="max-h-64 overflow-y-auto">
+          <div ref={listRef} className="max-h-64 overflow-y-auto">
             {!hideCurrent && (!q || 'current live'.includes(q)) && (
-              <DropdownItem active={value === '@current'} onClick={() => select('@current')}>
+              <DropdownItem data-item active={value === '@current'} highlighted={items.indexOf('@current') === activeIndex} onClick={() => select('@current')} onMouseEnter={() => setActiveIndex(items.indexOf('@current'))}>
                 Current (live)
               </DropdownItem>
             )}
             {!hideStart && (!q || 'checkpoint'.includes(q)) && (
-              <DropdownItem active={value === '@start'} onClick={() => select('@start')}>
+              <DropdownItem data-item active={value === '@start'} highlighted={items.indexOf('@start') === activeIndex} onClick={() => select('@start')} onMouseEnter={() => setActiveIndex(items.indexOf('@start'))}>
                 At checkpoint
               </DropdownItem>
             )}
@@ -92,7 +126,7 @@ function RefDropdown({ label, value, refs, hideStart, hideCurrent, onChange }: R
               <>
                 <SectionHeader>Branches</SectionHeader>
                 {branches.map((r) => (
-                  <DropdownItem key={r.id} active={value === r.id} onClick={() => select(r.id)}>
+                  <DropdownItem key={r.id} data-item active={value === r.id} highlighted={items.indexOf(r.id) === activeIndex} onClick={() => select(r.id)} onMouseEnter={() => setActiveIndex(items.indexOf(r.id))}>
                     {r.display}
                   </DropdownItem>
                 ))}
@@ -103,7 +137,7 @@ function RefDropdown({ label, value, refs, hideStart, hideCurrent, onChange }: R
               <>
                 <SectionHeader>Tags</SectionHeader>
                 {tags.map((r) => (
-                  <DropdownItem key={r.id} active={value === r.id} onClick={() => select(r.id)}>
+                  <DropdownItem key={r.id} data-item active={value === r.id} highlighted={items.indexOf(r.id) === activeIndex} onClick={() => select(r.id)} onMouseEnter={() => setActiveIndex(items.indexOf(r.id))}>
                     {r.display}
                   </DropdownItem>
                 ))}
@@ -114,7 +148,7 @@ function RefDropdown({ label, value, refs, hideStart, hideCurrent, onChange }: R
               <>
                 <SectionHeader>Recent commits</SectionHeader>
                 {commits.map((r) => (
-                  <DropdownItem key={r.id} active={value === r.id} onClick={() => select(r.id)}>
+                  <DropdownItem key={r.id} data-item active={value === r.id} highlighted={items.indexOf(r.id) === activeIndex} onClick={() => select(r.id)} onMouseEnter={() => setActiveIndex(items.indexOf(r.id))}>
                     <span className="font-mono">{r.display}</span>
                   </DropdownItem>
                 ))}
@@ -139,13 +173,15 @@ function SectionHeader({ children }: { children: React.ReactNode }) {
   );
 }
 
-function DropdownItem({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
+function DropdownItem({ active, highlighted, onClick, onMouseEnter, children, ...rest }: { active: boolean; highlighted?: boolean; onClick: () => void; onMouseEnter?: () => void; children: React.ReactNode; [key: string]: unknown }) {
   return (
     <button
       onClick={onClick}
-      className={`w-full text-left px-3 py-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors ${
-        active ? 'text-emerald-600 dark:text-emerald-400 font-medium' : 'text-slate-700 dark:text-slate-200'
-      }`}
+      onMouseEnter={onMouseEnter}
+      {...rest}
+      className={`w-full text-left px-3 py-1.5 transition-colors ${
+        highlighted ? 'bg-slate-100 dark:bg-slate-700' : 'hover:bg-slate-100 dark:hover:bg-slate-700'
+      } ${active ? 'text-emerald-600 dark:text-emerald-400 font-medium' : 'text-slate-700 dark:text-slate-200'}`}
     >
       {children}
     </button>
