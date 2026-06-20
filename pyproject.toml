@@ -1,6 +1,6 @@
 [project]
 name = "serpentine-parser"
-version = "0.3.2"
+version = "0.3.3"
 description = "Fast dependency graph analysis and visualization for Python, JavaScript/TypeScript, Rust, and Terraform projects"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -30,7 +30,7 @@ classifiers = [
 dependencies = [
     "watchdog>=6.0.0",
     "click>=8.1.0",
-    "starlette>=0.38.0",
+    "starlette>=0.46.0",
     "uvicorn[standard]>=0.30.0",
     "websockets>=12.0",
 ]
