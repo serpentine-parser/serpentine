@@ -10,12 +10,13 @@
 //! - Language-specific behaviour is pluggable via the `LanguageConfig` trait (Phase 3)
 
 use std::collections::HashMap;
+use std::sync::Arc;
 
 use serde::{Deserialize, Serialize};
 
 mod builder;
 mod pdg;
-mod loaders;
+pub(crate) mod loaders;
 mod resolvers;
 
 pub use builder::GraphBuilder;
@@ -70,18 +71,14 @@ pub struct NodeData {
     pub position: Option<(usize, usize)>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub docstring: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub code_block: Option<String>,
+    #[serde(skip)]
+    pub code_block: Option<Arc<str>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub content_hash: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub file_path: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub origin: Option<Origin>,
-    #[serde(default)]
-    pub children: Vec<NodeData>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub pdg: Option<serde_json::Value>,
     /// Function parameter names (excluding self/cls). Used by CONSTRUCTOR-ARG pass.
     #[serde(skip_serializing_if = "Vec::is_empty", default)]
     pub parameters: Vec<String>,
@@ -99,8 +96,6 @@ impl NodeData {
             content_hash: None,
             file_path: None,
             origin: None,
-            children: Vec::new(),
-            pdg: None,
             parameters: Vec::new(),
         }
     }
@@ -131,58 +126,6 @@ pub struct GraphMetadata {
     pub node_count: usize,
     pub edge_count: usize,
     pub node_types: HashMap<String, usize>,
-}
-
-/// The complete dependency graph (matches serpentine's GraphData)
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct DependencyGraph {
-    pub nodes: Vec<NodeData>,
-    pub edges: Vec<EdgeData>,
-    pub metadata: GraphMetadata,
-}
-
-impl Default for DependencyGraph {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-impl DependencyGraph {
-    pub fn new() -> Self {
-        DependencyGraph {
-            nodes: Vec::new(),
-            edges: Vec::new(),
-            metadata: GraphMetadata::default(),
-        }
-    }
-
-    pub fn compute_metadata(&mut self) {
-        self.metadata.node_count = self.count_nodes(&self.nodes);
-        self.metadata.edge_count = self.edges.len();
-
-        let mut type_counts: HashMap<String, usize> = HashMap::new();
-        self.count_node_types(&self.nodes, &mut type_counts);
-        self.metadata.node_types = type_counts;
-    }
-
-    fn count_nodes(&self, nodes: &[NodeData]) -> usize {
-        nodes
-            .iter()
-            .map(|n| 1 + self.count_nodes(&n.children))
-            .sum()
-    }
-
-    fn count_node_types(&self, nodes: &[NodeData], counts: &mut HashMap<String, usize>) {
-        for node in nodes {
-            let type_str = format!("{:?}", node.object_type).to_lowercase();
-            *counts.entry(type_str).or_insert(0) += 1;
-            self.count_node_types(&node.children, counts);
-        }
-    }
-
-    pub fn to_json(&self) -> String {
-        serde_json::to_string_pretty(self).unwrap_or_else(|_| "{}".to_string())
-    }
 }
 
 // ============================================================================

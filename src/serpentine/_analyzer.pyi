@@ -12,3 +12,7 @@ class FileManager:
     def build_dependency_graph(self) -> str:
         """Build the dependency graph and return as JSON string."""
         ...
+
+    def get_node_code(self, qualname: str) -> str | None:
+        """Return the source code block for a node by qualname, or None if not found."""
+        ...

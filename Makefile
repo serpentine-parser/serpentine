@@ -1,7 +1,16 @@
-.PHONY: test dev dev-rebuild frontend-build frontend-dev install
+.PHONY: test bench bench-dry dev dev-rebuild frontend-build frontend-dev install
 
 test:
 	uv run pytest tests/reference/ -v
+
+# Run graph build/incremental benchmark. Set REPO= to a large repo (e.g. ~/Code/dbt-core).
+# Optional: RUNS=5 N_FILES=1,5,20,50
+bench:
+	uv run python benchmarks/bench_graph.py $(or $(REPO),.) --runs $(or $(RUNS),3) --n-files $(or $(N_FILES),1,5,20)
+
+# Show file count and extension breakdown without running the full benchmark.
+bench-dry:
+	uv run python benchmarks/bench_graph.py $(or $(REPO),.) --dry-run
 
 # Start Tilt dev environment with all services running in parallel
 dev:

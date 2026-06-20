@@ -3,6 +3,7 @@ import { wsMachine, sendToSocket } from './wsMachine';
 import { queryClient } from './queryClient';
 import { bus } from './bus';
 import { transformData } from '@domains/graph';
+import { useGraphStore } from '../store';
 
 const API_BASE = (import.meta.env.VITE_API_URL ?? '').replace(/\/$/, '');
 
@@ -38,6 +39,11 @@ export const wsActor = createActor(
           });
 
           bus.publish({ type: 'GRAPH_UPDATED' });
+        } else if (event.payload?.type === 'node_code') {
+          const { qualname, code } = event.payload.data as { qualname: string; code: string | null };
+          if (qualname && code) {
+            useGraphStore.getState().setNodeCodeBlock(qualname, code);
+          }
         }
       },
     },

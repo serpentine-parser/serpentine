@@ -18,7 +18,7 @@ import time
 from pathlib import Path
 from typing import Any, Callable
 
-from serpentine.cache import CacheManager
+from serpentine.cache import CacheManager, PerFileCacheManager
 from serpentine.config import Config
 
 logger = logging.getLogger(__name__)
@@ -73,7 +73,7 @@ class GraphStateManager:
         """
         self._broadcast_callback = callback
 
-    def analyze_project(self, project_path: Path, changed_files: dict[str, str] | None = None) -> None:
+    def analyze_project(self, project_path: Path, changed_files: dict[str, str] | None = None, *, force_fresh: bool = False) -> None:
         """
         Analyze a project directory and update the graph state.
 
@@ -102,7 +102,7 @@ class GraphStateManager:
                     source_files = self._find_source_files(project_path)
                     cache = CacheManager(project_path, config_path)
                     fp = cache.compute_fingerprint(source_files)
-                    cached_json = cache.load(fp)
+                    cached_json = None if force_fresh else cache.load(fp)
                     if cached_json is not None:
                         self._update_state(cached_json)
                         logger.info(
@@ -111,7 +111,7 @@ class GraphStateManager:
                         if self._broadcast_callback:
                             self._broadcast_callback()
                         return
-                    # Cache miss: full analysis reusing the already-discovered source_files.
+                    # Cache miss (or force_fresh): full analysis reusing already-discovered source_files.
                     self._do_analysis(project_path, source_files)
                     # Save using the fingerprint computed above — no re-scan needed.
                     try:
@@ -153,33 +153,71 @@ class GraphStateManager:
 
             t0 = time.perf_counter()
 
-            # Create a fresh analyzer for each analysis
-            # This ensures clean state and avoids stale file issues
             self._analyzer = _analyzer.FileManager()
+
+            per_file_cache = PerFileCacheManager(project_path)
 
             logger.info(f"[perf] found {len(source_files)} source files ({time.perf_counter() - t0:.3f}s)")
 
             t_read = time.perf_counter()
-            file_pairs: list[tuple[str, str]] = []
-            for file_path in source_files:
-                try:
-                    source = file_path.read_text(encoding="utf-8")
-                    file_pairs.append((str(file_path), source))
-                except Exception as e:
-                    logger.warning(f"Failed to read {file_path}: {e}")
-            logger.info(f"[perf] file I/O: {time.perf_counter() - t_read:.3f}s")
+            cache_hits: list[tuple[str, str]] = []   # (path_str, results_json)
+            file_pairs: list[tuple[str, str]] = []   # (path_str, source) for fresh parse
 
-            t_parse = time.perf_counter()
-            try:
-                self._analyzer.open_files_bulk(file_pairs)
-            except Exception as e:
-                logger.warning(f"Bulk open failed, falling back to serial: {e}")
-                for path, source in file_pairs:
+            for file_path in source_files:
+                path_str = str(file_path)
+                results_json = per_file_cache.get(file_path)
+                if results_json is not None:
+                    cache_hits.append((path_str, results_json))
+                else:
                     try:
-                        self._analyzer.open_file(path, source)
+                        source = file_path.read_text(encoding="utf-8")
+                        file_pairs.append((path_str, source))
+                    except Exception as e:
+                        logger.warning(f"Failed to read {file_path}: {e}")
+
+            logger.info(
+                f"[perf] file I/O: {time.perf_counter() - t_read:.3f}s "
+                f"(per-file cache: {len(cache_hits)} hits, {len(file_pairs)} misses)"
+            )
+
+            # Load pre-parsed results for cache hits (no tree-sitter re-parse)
+            for path_str, results_json in cache_hits:
+                try:
+                    self._analyzer.load_file_results(path_str, results_json)
+                except Exception as e:
+                    logger.warning(f"Failed to load cached results for {path_str}: {e}")
+                    try:
+                        source = Path(path_str).read_text(encoding="utf-8")
+                        file_pairs.append((path_str, source))
                     except Exception as e2:
-                        logger.warning(f"Failed to load {path}: {e2}")
+                        logger.warning(f"Failed to read {path_str}: {e2}")
+
+            # Parse cache-miss files via tree-sitter
+            t_parse = time.perf_counter()
+            if file_pairs:
+                try:
+                    self._analyzer.open_files_bulk(file_pairs)
+                except Exception as e:
+                    logger.warning(f"Bulk open failed, falling back to serial: {e}")
+                    for path, source in file_pairs:
+                        try:
+                            self._analyzer.open_file(path, source)
+                        except Exception as e2:
+                            logger.warning(f"Failed to load {path}: {e2}")
             logger.info(f"[perf] parse (open_files_bulk): {time.perf_counter() - t_parse:.3f}s")
+
+            # Save newly-parsed results to per-file cache
+            t_cache_write = time.perf_counter()
+            saved = 0
+            for path_str, _ in file_pairs:
+                try:
+                    results_json = self._analyzer.get_file_results(path_str)
+                    per_file_cache.put(Path(path_str), results_json)
+                    saved += 1
+                except Exception as e:
+                    logger.debug(f"Per-file cache save failed for {path_str}: {e}")
+            if saved:
+                logger.info(f"[perf] per-file cache write ({saved} files): {time.perf_counter() - t_cache_write:.3f}s")
 
             # Build the dependency graph
             t_graph = time.perf_counter()
@@ -448,6 +486,13 @@ class GraphStateManager:
         except json.JSONDecodeError:
             logger.error("Failed to parse graph JSON")
             self._graph_data = {"nodes": [], "edges": [], "metadata": {}}
+
+    def get_node_code(self, qualname: str) -> str | None:
+        """Return the source code block for a node by qualname, or None."""
+        with self._lock:
+            if self._analyzer is None:
+                return None
+            return self._analyzer.get_node_code(qualname)
 
     def get_graph_json(self) -> str:
         """Get the current graph state as a JSON string."""

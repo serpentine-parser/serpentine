@@ -18,6 +18,8 @@ interface DetailPanelProps {
   findNodeById: (id: string) => Node | undefined;
   selectNode: (id: string | null) => void;
   expandParentNodes: (id: string) => void;
+  loadedCodeBlock?: string | null;
+  requestNodeCode?: (nodeId: string) => void;
 }
 
 function getPrismLanguage(node: Node): string {
@@ -70,7 +72,7 @@ function highlightMatchAtIndex(marks: Element[], index: number) {
   });
 }
 
-export function DetailPanel({ node, cfgNode, onClose, allEdges, visibleEdges, findNodeById, selectNode, expandParentNodes }: DetailPanelProps) {
+export function DetailPanel({ node, cfgNode, onClose, allEdges, visibleEdges, findNodeById, selectNode, expandParentNodes, loadedCodeBlock, requestNodeCode }: DetailPanelProps) {
   const codeRef = useRef<HTMLElement>(null);
 
   const [showCodeModal, setShowCodeModal] = useState(false);
@@ -104,13 +106,22 @@ export function DetailPanel({ node, cfgNode, onClose, allEdges, visibleEdges, fi
     };
   }, []);
 
+  const effectiveCodeBlock = loadedCodeBlock ?? node?.code_block ?? null;
+
+  // Request code block lazily when a node is selected and code is not yet loaded
+  useEffect(() => {
+    if (node && !node.code_block && !loadedCodeBlock) {
+      requestNodeCode?.(node.id);
+    }
+  }, [node?.id]);
+
   // Highlight code when component mounts or code changes
   useEffect(() => {
-    if (!node || !codeRef.current || !node.code_block) return;
-    codeRef.current.textContent = node.code_block;
+    if (!node || !codeRef.current || !effectiveCodeBlock) return;
+    codeRef.current.textContent = effectiveCodeBlock;
     codeRef.current.classList.remove("highlighted");
     Prism.highlightElement(codeRef.current);
-  }, [node?.id, node?.code_block]);
+  }, [node?.id, effectiveCodeBlock]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -133,8 +144,8 @@ export function DetailPanel({ node, cfgNode, onClose, allEdges, visibleEdges, fi
 
   useEffect(() => {
     if (!node) return;
-    if (showCodeModal && modalCodeRef.current && node.code_block) {
-      modalCodeRef.current.textContent = node.code_block;
+    if (showCodeModal && modalCodeRef.current && effectiveCodeBlock) {
+      modalCodeRef.current.textContent = effectiveCodeBlock;
       Prism.highlightElement(modalCodeRef.current);
       highlightedHtml.current = modalCodeRef.current.innerHTML;
       setModalSearchQuery('');
@@ -142,7 +153,7 @@ export function DetailPanel({ node, cfgNode, onClose, allEdges, visibleEdges, fi
       setCurrentMatch(0);
       matchMarksRef.current = [];
     }
-  }, [showCodeModal, node?.code_block]);
+  }, [showCodeModal, effectiveCodeBlock]);
 
   useEffect(() => {
     if (!showCodeModal || !modalCodeRef.current) return;
@@ -386,7 +397,7 @@ export function DetailPanel({ node, cfgNode, onClose, allEdges, visibleEdges, fi
           </div>
         )}
 
-        {node.code_block && (
+        {effectiveCodeBlock && (
           <div>
             <h3 className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1 uppercase tracking-wide">
               Source Code
@@ -398,7 +409,7 @@ export function DetailPanel({ node, cfgNode, onClose, allEdges, visibleEdges, fi
                   className={`language-${getPrismLanguage(node)}`}
                   style={{ fontSize: "12px", lineHeight: 1.4 }}
                 >
-                  {node.code_block}
+                  {effectiveCodeBlock}
                 </code>
               </pre>
               <div className="absolute top-2 right-0 m-2">
