@@ -1,13 +1,13 @@
+import { useGraphStore } from '@store';
 import { useQuery } from '@tanstack/react-query';
 import { DetailPanel } from '@ui/components/DetailPanel';
 import { GraphContainer } from '@ui/components/GraphContainer';
 import Header from '@ui/components/Header';
 import { SearchBar } from '@ui/components/SearchBar';
 import { Shell } from '@ui/components/Shell';
-import { Sidebar, SidebarExpansionSignal } from '@ui/components/Sidebar';
+import { Sidebar } from '@ui/components/Sidebar';
 import { useTheme } from '@ui/lib/ThemeContext';
 import { useEffect, useMemo, useState } from 'react';
-import { useGraphStore } from '@store';
 import { loadData } from '../domains/graph/api';
 
 export default function GraphPage() {
@@ -38,7 +38,6 @@ export default function GraphPage() {
   const findNodeById = useGraphStore((s) => s.findNodeById);
   const toggleNodeCollapse = useGraphStore((s) => s.toggleNodeCollapse);
   const dismissChange = useGraphStore((s) => s.dismissChange);
-  const dismissAllChanges = useGraphStore((s) => s.dismissAllChanges);
   const expandParentNodes = useGraphStore((s) => s.expandParentNodes);
   const moveChildWithConstraints = useGraphStore((s) => s.moveChildWithConstraints);
   const expandChildren = useGraphStore((s) => s.expandChildren);
@@ -138,7 +137,6 @@ export default function GraphPage() {
       selectNode={selectNode}
       expandParentNodes={expandParentNodes}
       flipLayoutDirection={flipLayoutDirection}
-      dismissAllChanges={dismissAllChanges}
       graphNodes={nodes}
       expandAll={expandAll}
       collapseAll={collapseAll}

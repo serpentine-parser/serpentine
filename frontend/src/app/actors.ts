@@ -3,6 +3,7 @@ import { wsMachine, sendToSocket } from './wsMachine';
 import { queryClient } from './queryClient';
 import { bus } from './bus';
 import { transformData } from '@domains/graph';
+import { fetchVcsRefs, VcsRef } from '@domains/vcs';
 import { useGraphStore } from '../store';
 
 const API_BASE = (import.meta.env.VITE_API_URL ?? '').replace(/\/$/, '');
@@ -44,6 +45,11 @@ export const wsActor = createActor(
           if (qualname && code) {
             useGraphStore.getState().setNodeCodeBlock(qualname, code);
           }
+        } else if (event.payload?.type === 'error') {
+          bus.publish({ type: 'GRAPH_UPDATED' });
+        } else if (event.payload?.type === 'vcs_refs') {
+          const { refs, available } = event.payload.data as { refs: VcsRef[]; available: boolean };
+          useGraphStore.getState().setVcsRefs(refs, available);
         }
       },
     },
@@ -51,5 +57,30 @@ export const wsActor = createActor(
 );
 
 wsActor.start();
+
+// On every WS connect (including reconnects), clear any lingering server-side
+// comparison state so the client always starts from a clean baseline.
+let _wasConnected = false;
+wsActor.subscribe((snapshot) => {
+  const isConnected = snapshot.matches({ active: 'connected' });
+  if (isConnected && !_wasConnected) {
+    sendToSocket({ action: 'clear_vcs_comparison' });
+  }
+  _wasConnected = isConnected;
+});
+
+// Fetch VCS refs on startup
+fetchVcsRefs().then(({ refs, available }) => {
+  useGraphStore.getState().setVcsRefs(refs, available);
+});
+
+// Wire VCS comparison bus events → WebSocket actions
+bus.subscribe((event) => {
+  if (event.type === 'VCS_COMPARISON_SET') {
+    sendToSocket({ action: 'set_vcs_comparison', data: { from: event.from, to: event.to } });
+  } else if (event.type === 'VCS_COMPARISON_CLEARED') {
+    sendToSocket({ action: 'clear_vcs_comparison' });
+  }
+});
 
 export { sendToSocket as sendWsMessage };

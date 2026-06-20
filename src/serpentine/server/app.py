@@ -28,6 +28,7 @@ from starlette.staticfiles import StaticFiles
 
 from serpentine.server.routes import create_routes
 from serpentine.server.websocket import ConnectionManager, set_connection_manager
+from serpentine.vcs.manager import VcsManager
 
 if TYPE_CHECKING:
     from serpentine.state import GraphStateManager
@@ -42,6 +43,7 @@ def create_app(
     state_manager: "GraphStateManager",
     static_dir: Path | None = None,
     debug: bool = False,
+    vcs_manager: VcsManager | None = None,
 ) -> Starlette:
     """
     Create and configure the Starlette application.
@@ -91,7 +93,7 @@ def create_app(
         _event_loop = None
 
     # Create API routes
-    routes = create_routes(state_manager, connection_manager)
+    routes = create_routes(state_manager, connection_manager, vcs_manager)
 
     # Add static file serving if directory has a built frontend
     if static_dir and (static_dir / "index.html").exists():
