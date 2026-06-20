@@ -58,13 +58,19 @@ export const wsActor = createActor(
 
 wsActor.start();
 
-// On every WS connect (including reconnects), clear any lingering server-side
-// comparison state so the client always starts from a clean baseline.
+// On every WS connect (including reconnects), restore any persisted comparison or
+// clear lingering server-side state so the client starts from a clean baseline.
 let _wasConnected = false;
 wsActor.subscribe((snapshot) => {
   const isConnected = snapshot.matches({ active: 'connected' });
   if (isConnected && !_wasConnected) {
-    sendToSocket({ action: 'clear_vcs_comparison' });
+    const { comparison } = useGraphStore.getState();
+    const isActive = comparison.from !== '@current' || comparison.to !== '@current';
+    if (isActive) {
+      sendToSocket({ action: 'set_vcs_comparison', data: { from: comparison.from, to: comparison.to } });
+    } else {
+      sendToSocket({ action: 'clear_vcs_comparison' });
+    }
   }
   _wasConnected = isConnected;
 });

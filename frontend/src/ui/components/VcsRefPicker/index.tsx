@@ -221,7 +221,7 @@ export function VcsRefPicker() {
           <span className="hidden sm:inline">compare</span>
         </div>
         <span className="px-2 py-1 text-xs text-slate-500 dark:text-slate-400">At checkpoint</span>
-        <span className="text-slate-400 dark:text-slate-500 text-xs">→</span>
+        <span className="text-slate-400 dark:text-slate-500 text-xs">←</span>
         <span className="px-2 py-1 text-xs text-slate-500 dark:text-slate-400">Current (live)</span>
         <button
           onClick={handleMarkCheckpoint}
@@ -253,7 +253,7 @@ export function VcsRefPicker() {
         onChange={handleFromChange}
       />
 
-      <span className="text-slate-400 dark:text-slate-500 text-xs">→</span>
+      <span className="text-slate-400 dark:text-slate-500 text-xs">←</span>
 
       <RefDropdown
         label="to"

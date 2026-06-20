@@ -7,7 +7,6 @@ from typing import Protocol, runtime_checkable
 
 logger = logging.getLogger(__name__)
 
-SUPPORTED_EXTENSIONS = {".py", ".js", ".jsx", ".ts", ".tsx", ".rs", ".tf"}
 MAX_COMMITS = 100
 
 
@@ -21,7 +20,7 @@ class VcsRef:
 @runtime_checkable
 class VcsBackend(Protocol):
     def list_refs(self) -> list[VcsRef]: ...
-    def get_archive_at(self, ref: str) -> dict[str, bytes]: ...
+    def get_archive_at(self, ref: str, extensions: set[str]) -> dict[str, bytes]: ...
     def resolve_to_commit_hash(self, ref: str) -> str: ...
 
 
@@ -80,8 +79,13 @@ class GitBackend:
                 pass
         return str(obj.id)
 
-    def get_archive_at(self, ref: str) -> dict[str, bytes]:
-        """Return {relative_path_str: file_content_bytes} for all supported files at ref."""
+    def get_archive_at(self, ref: str, extensions: set[str]) -> dict[str, bytes]:
+        """Return {relative_path_str: file_content_bytes} for files at ref matching extensions.
+
+        Callers (routes.py) validate ref against list_refs() before reaching here,
+        so ref is always a known branch name, tag, or full commit hash — never
+        arbitrary user input that could trigger unexpected pygit2 behaviour.
+        """
         import pygit2
 
         obj = self._repo.revparse_single(ref)
@@ -95,19 +99,19 @@ class GitBackend:
 
         tree = commit.peel(pygit2.Tree)
         result: dict[str, bytes] = {}
-        self._walk_tree(tree, "", result)
+        self._walk_tree(tree, "", result, extensions)
         return result
 
-    def _walk_tree(self, tree: object, prefix: str, result: dict[str, bytes]) -> None:
+    def _walk_tree(self, tree: object, prefix: str, result: dict[str, bytes], extensions: set[str]) -> None:
         import pygit2
 
         for entry in tree:
             path = f"{prefix}{entry.name}" if prefix else entry.name
             if entry.type_str == "tree":
                 subtree = self._repo.get(entry.id)
-                self._walk_tree(subtree, path + "/", result)
+                self._walk_tree(subtree, path + "/", result, extensions)
             elif entry.type_str == "blob":
-                if any(path.endswith(ext) for ext in SUPPORTED_EXTENSIONS):
+                if any(path.endswith(ext) for ext in extensions):
                     blob = self._repo.get(entry.id)
                     result[path] = blob.data
 

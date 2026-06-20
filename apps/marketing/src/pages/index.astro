@@ -223,6 +223,42 @@ const GITHUB = 'https://github.com/serpentine-parser/serpentine';
     </p>
   </section>
 
+  <!-- ─── VCS ─── -->
+  <section class="border-t border-border px-6 py-20 md:py-24 max-w-content mx-auto">
+    <p class="font-mono text-[0.7rem] text-accent tracking-[0.12em] uppercase mb-3">VCS integration</p>
+    <h2 class="text-[clamp(1.75rem,3vw,2.5rem)] font-light tracking-[-0.02em] leading-[1.2]">
+      See what changed<br />between any two refs.
+    </h2>
+
+    <div class="mt-0 max-w-[560px]">
+      <p class="text-text-muted font-light leading-[1.75] mb-4 mt-6">
+        Compare any two branches, tags, or commits. Serpentine analyzes the graph at each ref
+        and overlays the diff directly on the visualization — added, modified, and deleted nodes
+        highlighted in place.
+      </p>
+      <p class="text-text-muted font-light leading-[1.75] mb-8">
+        Filter to only what changed with <code class="font-mono text-[0.8em] text-accent bg-bg border border-border rounded px-1.5 py-0.5">state:modified</code>, or
+        combine with graph operators to trace the blast radius of a change:
+        <code class="font-mono text-[0.8em] text-accent bg-bg border border-border rounded px-1.5 py-0.5">+state:modified</code> pulls in every upstream dependency of every modified node.
+      </p>
+    </div>
+
+    <div class="mt-6 grid grid-cols-1 md:grid-cols-3 border border-border rounded-xl overflow-hidden divide-y md:divide-y-0 md:divide-x divide-border">
+      {[
+        { icon: '◈', title: 'Any two refs',     body: 'Branches, tags, commits, or the live working tree. Compare a feature branch against main, or any historical snapshot against any other.' },
+        { icon: '◉', title: 'Graph-level diff', body: 'Not a file diff — a structural diff. See which functions were added, which modules changed their dependency surface, which classes were removed.' },
+        { icon: '◎', title: 'State selectors',  body: 'Filter the graph to only changed nodes with state:modified, state:added, or state:deleted. Compose with + and @ operators for blast-radius analysis.' },
+      ].map(({ icon, title, body }) => (
+        <div class="relative bg-surface hover:bg-surface-2 transition-colors px-7 py-8 overflow-hidden group">
+          <div class="absolute top-0 inset-x-0 h-0.5 bg-gradient-to-r from-accent to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
+          <span class="text-xl mb-3 block">{icon}</span>
+          <h3 class="text-base font-medium mb-3 text-text">{title}</h3>
+          <p class="text-[0.875rem] text-text-muted font-light leading-[1.7]">{body}</p>
+        </div>
+      ))}
+    </div>
+  </section>
+
   <!-- ─── INIT ─── -->
   <section class="border-t border-border px-6 py-20 md:py-24 max-w-content mx-auto">
     <p class="font-mono text-[0.7rem] text-accent tracking-[0.12em] uppercase mb-3">Setup</p>

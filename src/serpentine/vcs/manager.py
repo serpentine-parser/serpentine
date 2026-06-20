@@ -1,5 +1,6 @@
 """VcsManager: loads and analyzes historical snapshots from a VCS backend."""
 
+import fnmatch
 import logging
 from pathlib import Path
 from typing import Any
@@ -31,7 +32,7 @@ class VcsManager:
             return cached
 
         logger.info(f"[vcs] analyzing snapshot at {ref} ({commit_hash[:7]})")
-        archive = self._backend.get_archive_at(ref)
+        archive = self._backend.get_archive_at(ref, set(self._config.extensions))
         graph_json = self._analyze_archive(archive)
         del archive  # release dict[str, bytes] immediately
 
@@ -45,12 +46,31 @@ class VcsManager:
         data = json.dumps(self._config.to_dict(), sort_keys=True)
         return hashlib.sha256(data.encode()).hexdigest()[:16]
 
+    def _is_excluded(self, rel_path: str) -> bool:
+        """Return True if rel_path should be excluded per the active config."""
+        p = Path(rel_path)
+        # Extension filter
+        if p.suffix not in self._config.extensions:
+            return True
+        # Directory filter — any path component that is in exclude_dirs
+        exclude_dirs = self._config.exclude_dirs
+        if any(part in exclude_dirs for part in p.parts[:-1]):
+            return True
+        # Glob pattern filter
+        for pattern in self._config.exclude_patterns:
+            if fnmatch.fnmatch(rel_path, pattern) or fnmatch.fnmatch(p.name, pattern):
+                return True
+        return False
+
     def _analyze_archive(self, archive: dict[str, bytes]) -> str:
         from serpentine import _analyzer
 
         fm = _analyzer.FileManager()
         file_pairs: list[tuple[str, str]] = []
         for rel_path, content_bytes in archive.items():
+            if self._is_excluded(rel_path):
+                logger.debug(f"[vcs] excluded by config: {rel_path}")
+                continue
             try:
                 content = content_bytes.decode("utf-8", errors="replace")
                 file_pairs.append((rel_path, content))
