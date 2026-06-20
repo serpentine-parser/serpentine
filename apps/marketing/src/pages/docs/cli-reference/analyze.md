@@ -25,6 +25,7 @@ serpentine analyze [PATH] [OPTIONS]
 | `--include-standard` | Include stdlib nodes (default: off) |
 | `--include-third-party` | Include third-party nodes (default: off) |
 | `--state TEXT` | Filter by change state: `modified`, `added`, `deleted` |
+| `--compare TEXT` | VCS ref to compare against (branch, tag, or commit hash). Annotates output with `change_status`. Requires `serpentine-parser[git]`. |
 
 ## Examples
 
@@ -56,6 +57,16 @@ Filter by recently modified files:
 
 ```bash
 serpentine analyze . --state modified --format json --pretty
+```
+
+Compare against a git ref and show only what changed:
+
+```bash
+# Annotate all nodes with change_status relative to main
+serpentine analyze . --compare main --format json --pretty
+
+# Show only modified nodes, with full source blocks
+serpentine analyze . --compare main --state modified --source --pretty
 ```
 
 ## Text output format

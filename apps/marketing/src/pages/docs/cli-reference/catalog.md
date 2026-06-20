@@ -21,6 +21,8 @@ serpentine catalog [PATH] [OPTIONS]
 | `--pretty` | Pretty-print JSON output |
 | `--include-standard` | Include stdlib nodes |
 | `--include-third-party` | Include third-party nodes |
+| `--state TEXT` | Filter by change state: `modified`, `added`, `deleted` |
+| `--compare TEXT` | VCS ref to compare against. Annotates output with `change_status`. Requires `serpentine-parser[git]`. |
 
 ## Finding node IDs
 

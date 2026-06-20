@@ -20,6 +20,20 @@ uv tool install serpentine-parser
 
 Installing via `uv tool` makes the `serpentine` command available globally without activating a virtual environment.
 
+## Optional extras
+
+### VCS integration (`[git]`)
+
+Enables the compare toolbar in the UI and the `--compare` flag in `analyze` / `catalog`. Requires a git repository.
+
+```bash
+pip install "serpentine-parser[git]"
+# or
+uv tool install "serpentine-parser[git]"
+```
+
+This installs [pygit2](https://github.com/libgit2/pygit2), a Python binding for libgit2 that reads git history without requiring the `git` binary. When you run `serpentine serve` inside a git repo with this extra installed, the compare toolbar appears automatically.
+
 ## From source
 
 > **Prerequisites**: Python 3.12+, [Rust toolchain](https://rustup.rs), Node.js 18+
