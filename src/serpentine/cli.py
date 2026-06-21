@@ -977,6 +977,7 @@ def mcp() -> None:
 def mcp_serve(host: str, port: int) -> None:
     """Start the MCP server (Streamable HTTP via FastMCP)."""
     try:
+        from serpentine.mcp.auth import build_jwt_verifier
         from serpentine.mcp.server import create_mcp_app
         from serpentine.storage.factory import build_store
         from serpentine.vcs.factory import build_vcs_managers
@@ -985,11 +986,8 @@ def mcp_serve(host: str, port: int) -> None:
             f"MCP dependencies missing: {e}. Install with: pip install serpentine[mcp]"
         )
 
-    allow_unauth = os.environ.get("SERPENTINE_MCP_ALLOW_UNAUTHENTICATED", "").lower() == "true"
-    if allow_unauth:
-        click.echo("WARNING: SERPENTINE_MCP_ALLOW_UNAUTHENTICATED=true — auth is disabled", err=True)
-
     try:
+        auth = build_jwt_verifier()
         store = build_store()
         vcs_managers = build_vcs_managers()
     except Exception as e:
@@ -997,7 +995,7 @@ def mcp_serve(host: str, port: int) -> None:
 
     click.echo(f"Loaded {len(vcs_managers)} repo(s): {', '.join(vcs_managers) or '(none)'}", err=True)
 
-    app = create_mcp_app(store, vcs_managers, auth=None)
+    app = create_mcp_app(store, vcs_managers, auth=auth)
     click.echo(f"Starting MCP server at http://{host}:{port}", err=True)
     uvicorn.run(app.http_app(), host=host, port=port)
 

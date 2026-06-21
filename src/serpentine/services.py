@@ -7,7 +7,10 @@ No I/O, no framework concerns. Entrypoints are thin adapters over these function
 
 import json
 import logging
+import re
 from typing import Any, Protocol
+
+_COMMIT_HASH_RE = re.compile(r"^[0-9a-f]{40}$")
 
 from serpentine.config import Config
 from serpentine.selector import GraphSelector, filter_by_state
@@ -222,6 +225,16 @@ def get_stats(graph_data: dict[str, Any]) -> dict[str, Any]:
 # MCP-specific: store-backed graph retrieval and ingestion
 # ---------------------------------------------------------------------------
 
+def _validate_ref(vcs: VcsManager, repo_id: str, ref: str) -> None:
+    """Raise UnknownRepoError if ref is not in the allowed ref list or a known commit hash."""
+    # Full 40-char hex commit hashes are allowed so callers can query specific ingested commits.
+    if _COMMIT_HASH_RE.match(ref):
+        return
+    valid = {r.id for r in vcs.list_refs()}
+    if ref not in valid:
+        raise UnknownRepoError(f"ref {ref!r} is not an allowed ref for {repo_id}")
+
+
 def get_graph(
     store: GraphStore,
     vcs: VcsManager,
@@ -234,6 +247,7 @@ def get_graph(
     include_third_party: bool = False,
 ) -> dict[str, Any]:
     """Resolve ref → commit hash via vcs, load graph from store, apply filters."""
+    _validate_ref(vcs, repo_id, ref)
     commit_hash = vcs._backend.resolve_to_commit_hash(ref)
     graph_json = store.get(repo_id, commit_hash)
     if graph_json is None:
@@ -266,6 +280,7 @@ def ingest_ref(
     ignore_config: bool = False,
 ) -> str:
     """Fetch config from repo, analyze at ref, persist graph to store. Returns commit hash."""
+    _validate_ref(vcs, repo_id, ref)
     config_bytes = vcs._backend.get_config_file(ref)
     if config_bytes is None and not ignore_config:
         raise MissingConfigError(repo_id)

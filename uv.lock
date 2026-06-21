@@ -2082,6 +2082,7 @@ git = [
 mcp = [
     { name = "fastmcp" },
     { name = "httpx" },
+    { name = "pyjwt", extra = ["crypto"] },
 ]
 s3 = [
     { name = "boto3" },
@@ -2102,6 +2103,7 @@ requires-dist = [
     { name = "google-cloud-storage", marker = "extra == 'gcs'", specifier = ">=2.0" },
     { name = "httpx", marker = "extra == 'mcp'", specifier = ">=0.27" },
     { name = "pygit2", marker = "extra == 'git'", specifier = ">=1.15" },
+    { name = "pyjwt", extras = ["crypto"], marker = "extra == 'mcp'", specifier = ">=2.8" },
     { name = "starlette", specifier = ">=0.38.0" },
     { name = "uvicorn", extras = ["standard"], specifier = ">=0.30.0" },
     { name = "watchdog", specifier = ">=6.0.0" },

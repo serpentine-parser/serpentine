@@ -1,7 +1,7 @@
 .PHONY: test bench bench-dry dev dev-rebuild frontend-build frontend-dev install
 
 test:
-	uv run pytest tests/reference/ -v
+	uv run pytest tests -v
 
 # Run graph build/incremental benchmark. Set REPO= to a large repo (e.g. ~/Code/dbt-core).
 # Optional: RUNS=5 N_FILES=1,5,20,50

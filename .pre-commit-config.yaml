@@ -18,6 +18,6 @@ repos:
       - id: pytest-reference
         name: Reference edge tests
         language: system
-        entry: uv run pytest tests/reference/ -v
+        entry: uv run pytest tests -v
         files: \.(rs|py)$
         pass_filenames: false
