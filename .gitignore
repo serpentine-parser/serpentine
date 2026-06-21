@@ -30,3 +30,7 @@ frontend/.env.local
 
 #serpentine
 .serpentine
+
+# MCP playground
+playground/.env
+playground/store/

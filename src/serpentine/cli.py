@@ -12,6 +12,7 @@ Commands are organized by concern:
 
 import fnmatch
 import json
+import os
 import threading
 import time
 import webbrowser
@@ -24,7 +25,8 @@ import uvicorn
 
 from serpentine import __version__
 from serpentine.cache import VcsRefCacheManager
-from serpentine.selector import GraphSelector, filter_by_state
+from serpentine.adapters import DiskSourceProvider
+from serpentine.domain import apply_filters, filter_by_origin, get_catalog, get_stats, inject_source
 from serpentine.server import create_app
 from serpentine.state import GraphStateManager
 from serpentine.vcs.backend import detect_backend
@@ -319,44 +321,29 @@ def analyze(
             raise click.ClickException(f"Could not resolve ref '{compare_ref}': {e}") from e
         state_manager.set_vcs_comparison(from_graph_json, to_graph_json=None)
 
-    # Get the graph data as a dict for post-processing
-    graph_data = state_manager.get_graph_data()
+    graph_data = apply_filters(
+        state_manager.get_graph_data(),
+        select=select,
+        exclude=exclude,
+        state=state,
+        include_standard=include_standard,
+        include_third_party=include_third_party,
+    )
 
-    # Filter by origin (strip standard/third-party nodes by default)
-    if not include_standard or not include_third_party:
-        graph_data = _filter_by_origin(
-            graph_data, include_standard, include_third_party
-        )
-
-    # Apply selector/exclude filtering
-    if select or exclude:
-        graph_data = GraphSelector.resolve(
-            graph_data,
-            select=select or "",
-            exclude=exclude or "",
-        )
-
-    # Apply state filter
-    if state:
-        states = {s.strip() for s in state.split(",") if s.strip()}
-        graph_data = filter_by_state(graph_data, states)
-
-    # Apply edge type filter
     if edge_types:
         allowed = {t.strip() for t in edge_types.split(",") if t.strip()}
         graph_data["edges"] = [
             e for e in graph_data.get("edges", []) if e.get("type") in allowed
         ]
 
-    # Strip cfg fields if requested
     if no_cfg:
         _strip_cfg(graph_data.get("nodes", []))
 
     if fmt == "text":
         lines: list[str] = []
         if source:
+            inject_source(graph_data, DiskSourceProvider())
             node_index = _build_node_index(graph_data.get("nodes", []))
-            project_path_obj = Path(path).resolve()
             edges_by_caller: dict[str, list[dict[str, Any]]] = {}
             for e in graph_data.get("edges", []):
                 edges_by_caller.setdefault(e.get("caller", ""), []).append(e)
@@ -365,10 +352,10 @@ def analyze(
                 if not include_assignments and object_type in {"assignment", "unknown"}:
                     continue
                 pos = node.get("position", [0, 0])
-                rel = _rel_path(node.get("file_path", ""), project_path_obj)
+                rel = _rel_path(node.get("file_path", ""), project_path)
                 lines.append(f"## {node_id}  [{object_type}]  {rel}:{pos[0]}-{pos[1]}")
                 if object_type in {"function", "class"}:
-                    code = node.get("code_block") or state_manager.get_node_code(node_id) or ""
+                    code = node.get("code_block", "")
                     if code:
                         lines.append(code)
                 for e in edges_by_caller.get(node_id, []):
@@ -505,17 +492,13 @@ def catalog(
     graph_data = state_manager.get_graph_data()
 
     if fmt == "text":
-        if not include_standard or not include_third_party:
-            graph_data = _filter_by_origin(
-                graph_data, include_standard, include_third_party
-            )
-        project_path_obj = Path(path).resolve()
+        graph_data = filter_by_origin(graph_data, include_standard, include_third_party)
         state_filter = (
             {s.strip() for s in state.split(",") if s.strip()} if state else None
         )
         lines = _render_catalog_text(
             graph_data.get("nodes", []),
-            project_path_obj,
+            project_path,
             filters,
             include_assignments,
             state_filter,
@@ -528,41 +511,24 @@ def catalog(
             click.echo(text_out)
         return
 
-    # Flatten tree into catalog entries
-    flat_nodes: list[dict[str, Any]] = []
-    _flatten_nodes(graph_data.get("nodes", []), flat_nodes)
+    # Build catalog via service, then apply CLI-specific glob filters
+    flat_nodes = get_catalog(
+        graph_data,
+        include_assignments=include_assignments,
+        include_standard=include_standard,
+        include_third_party=include_third_party,
+        state=state,
+    )
 
-    # Filter by origin
-    if not include_standard or not include_third_party:
-        flat_nodes = [
-            n
-            for n in flat_nodes
-            if not (n.get("origin") == "standard" and not include_standard)
-            and not (n.get("origin") == "third-party" and not include_third_party)
-        ]
-
-    # Strip assignment nodes unless included
-    if not include_assignments:
-        flat_nodes = [
-            n for n in flat_nodes if n.get("type") in ("module", "class", "function")
-        ]
-
-    # Apply glob filters (union across all patterns, matched against id and name)
     if filters:
         flat_nodes = [
-            n
-            for n in flat_nodes
+            n for n in flat_nodes
             if any(
                 fnmatch.fnmatch(n.get("id", ""), pat)
                 or fnmatch.fnmatch(n.get("name", ""), pat)
                 for pat in filters
             )
         ]
-
-    # Apply state filter
-    if state:
-        states = {s.strip() for s in state.split(",") if s.strip()}
-        flat_nodes = [n for n in flat_nodes if n.get("change_status") in states]
 
     result = {
         "nodes": flat_nodes,
@@ -621,60 +587,10 @@ def stats(
     state_manager = GraphStateManager(project_path)
     state_manager.analyze_project(project_path)
 
-    graph_data = state_manager.get_graph_data()
-
-    # Flatten all nodes for counting
-    all_nodes: list[dict[str, Any]] = []
-    _flatten_nodes(graph_data.get("nodes", []), all_nodes)
-
-    # Filter by origin
-    if not include_standard or not include_third_party:
-        all_nodes = [
-            n
-            for n in all_nodes
-            if not (n.get("origin") == "standard" and not include_standard)
-            and not (n.get("origin") == "third-party" and not include_third_party)
-        ]
-
-    # Count edges (filter to surviving node ids)
-    surviving_ids = {n["id"] for n in all_nodes}
-    edges = graph_data.get("edges", [])
-    filtered_edges = [
-        e
-        for e in edges
-        if (e.get("source") or e.get("caller")) in surviving_ids
-        and (e.get("target") or e.get("callee")) in surviving_ids
-    ]
-
-    # by_type counts
-    by_type: dict[str, int] = {}
-    for node in all_nodes:
-        t = node.get("type") or node.get("object_type") or "unknown"
-        by_type[t] = by_type.get(t, 0) + 1
-
-    # by_origin counts
-    by_origin: dict[str, int] = {}
-    for node in all_nodes:
-        o = node.get("origin") or "local"
-        by_origin[o] = by_origin.get(o, 0) + 1
-
-    # top_level_modules: parent == null, type == "module", origin == "local"
-    top_level_modules = [
-        n["id"]
-        for n in all_nodes
-        if n.get("parent") is None
-        and (n.get("type") or n.get("object_type")) == "module"
-        and (n.get("origin") or "local") == "local"
-    ]
-
-    result = {
-        "node_count": len(all_nodes),
-        "edge_count": len(filtered_edges),
-        "by_type": by_type,
-        "by_origin": by_origin,
-        "top_level_modules": top_level_modules,
-    }
-
+    graph_data = filter_by_origin(
+        state_manager.get_graph_data(), include_standard, include_third_party
+    )
+    result = get_stats(graph_data)
     click.echo(json.dumps(result, indent=2) if pretty else json.dumps(result))
 
 
@@ -1021,49 +937,6 @@ def _flatten_nodes(
         _flatten_nodes(node.get("children", []), result, node.get("id"))
 
 
-def _filter_by_origin(
-    graph: dict[str, Any], include_standard: bool, include_third_party: bool
-) -> dict[str, Any]:
-    """Filter graph nodes by origin, removing standard/third-party as configured."""
-
-    def _filter_nodes(nodes: list[dict[str, Any]]) -> list[dict[str, Any]]:
-        result = []
-        for node in nodes:
-            origin = node.get("origin", "local")
-            if origin == "standard" and not include_standard:
-                continue
-            if origin == "third-party" and not include_third_party:
-                continue
-            filtered = dict(node)
-            filtered["children"] = _filter_nodes(node.get("children", []))
-            result.append(filtered)
-        return result
-
-    edges = graph.get("edges", [])
-    filtered_nodes = _filter_nodes(graph.get("nodes", []))
-
-    # Collect surviving node ids to filter edges
-    surviving_ids: set[str] = set()
-
-    def _collect_ids(nodes: list[dict[str, Any]]) -> None:
-        for node in nodes:
-            surviving_ids.add(node["id"])
-            _collect_ids(node.get("children", []))
-
-    _collect_ids(filtered_nodes)
-
-    filtered_edges = [
-        e
-        for e in edges
-        if (e.get("source") or e.get("caller")) in surviving_ids
-        and (e.get("target") or e.get("callee")) in surviving_ids
-    ]
-
-    result: dict[str, Any] = {"nodes": filtered_nodes, "edges": filtered_edges}
-    if "metadata" in graph:
-        result["metadata"] = graph["metadata"]
-    return result
-
 
 def _strip_cfg(nodes: list[dict[str, Any]]) -> None:
     """Recursively strip the cfg field from all nodes in-place."""
@@ -1090,6 +963,80 @@ def _get_static_dir() -> Path:
 
     # Fallback to a placeholder directory (will serve 404s until UI is built)
     return package_dir / "static"
+
+
+@main.group()
+def mcp() -> None:
+    """MCP server commands for remote codebase analysis."""
+    pass
+
+
+@mcp.command("serve")
+@click.option("--host", default="127.0.0.1", help="Bind host (default: 127.0.0.1)")
+@click.option("--port", default=8001, type=int, help="Bind port (default: 8001)")
+def mcp_serve(host: str, port: int) -> None:
+    """Start the MCP server (Streamable HTTP via FastMCP)."""
+    try:
+        from serpentine.mcp.server import create_mcp_app
+        from serpentine.storage.factory import build_store
+        from serpentine.vcs.factory import build_vcs_managers
+    except ImportError as e:
+        raise click.ClickException(
+            f"MCP dependencies missing: {e}. Install with: pip install serpentine[mcp]"
+        )
+
+    allow_unauth = os.environ.get("SERPENTINE_MCP_ALLOW_UNAUTHENTICATED", "").lower() == "true"
+    if allow_unauth:
+        click.echo("WARNING: SERPENTINE_MCP_ALLOW_UNAUTHENTICATED=true — auth is disabled", err=True)
+
+    try:
+        store = build_store()
+        vcs_managers = build_vcs_managers()
+    except Exception as e:
+        raise click.ClickException(str(e))
+
+    click.echo(f"Loaded {len(vcs_managers)} repo(s): {', '.join(vcs_managers) or '(none)'}", err=True)
+
+    app = create_mcp_app(store, vcs_managers, auth=None)
+    click.echo(f"Starting MCP server at http://{host}:{port}", err=True)
+    uvicorn.run(app.http_app(), host=host, port=port)
+
+
+@mcp.command("ingest")
+@click.argument("repo_id")
+@click.argument("ref", default="")
+@click.option("--all-refs", is_flag=True, default=False, help="Ingest all refs for this repo")
+@click.option("--ignore-config", is_flag=True, default=False, help="Use default Config even without .serpentine.toml")
+def mcp_ingest(repo_id: str, ref: str, all_refs: bool, ignore_config: bool) -> None:
+    """Ingest a repo ref into the graph store."""
+    try:
+        from serpentine.services import ingest_ref as _ingest_ref
+        from serpentine.storage.factory import build_store
+        from serpentine.vcs.factory import build_vcs_manager
+    except ImportError as e:
+        raise click.ClickException(
+            f"MCP dependencies missing: {e}. Install with: pip install serpentine[mcp,git]"
+        )
+
+    try:
+        store = build_store()
+        vcs = build_vcs_manager(repo_id)
+    except Exception as e:
+        raise click.ClickException(str(e))
+
+    if all_refs:
+        refs_to_ingest = [r.id for r in vcs.list_refs()]
+    elif ref:
+        refs_to_ingest = [ref]
+    else:
+        raise click.ClickException("Provide a <ref> argument or use --all-refs")
+
+    for r in refs_to_ingest:
+        try:
+            commit_hash = _ingest_ref(vcs, store, repo_id, r, ignore_config=ignore_config)
+            click.echo(f"Ingested {repo_id}/{r} → {commit_hash[:7]}")
+        except Exception as e:
+            click.echo(f"Error ingesting {repo_id}/{r}: {e}", err=True)
 
 
 if __name__ == "__main__":

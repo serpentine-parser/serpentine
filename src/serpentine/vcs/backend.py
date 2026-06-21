@@ -22,6 +22,8 @@ class VcsBackend(Protocol):
     def list_refs(self) -> list[VcsRef]: ...
     def get_archive_at(self, ref: str, extensions: set[str]) -> dict[str, bytes]: ...
     def resolve_to_commit_hash(self, ref: str) -> str: ...
+    def get_config_file(self, ref: str) -> bytes | None: ...
+    def get_file_at(self, ref: str, path: str) -> bytes | None: ...
 
 
 class GitBackend:
@@ -101,6 +103,50 @@ class GitBackend:
         result: dict[str, bytes] = {}
         self._walk_tree(tree, "", result, extensions)
         return result
+
+    def get_file_at(self, ref: str, path: str) -> bytes | None:
+        """Return file contents at ref for a single path, or None if not found."""
+        import pygit2
+
+        try:
+            obj = self._repo.revparse_single(ref)
+            if hasattr(obj, "peel"):
+                try:
+                    commit = obj.peel(pygit2.Commit)
+                except Exception:
+                    commit = obj
+            else:
+                commit = obj
+            tree = commit.peel(pygit2.Tree)
+            parts = path.split("/")
+            node = tree
+            for part in parts[:-1]:
+                node = self._repo.get(node[part].id)
+            entry = node[parts[-1]]
+            blob = self._repo.get(entry.id)
+            return bytes(blob.data)
+        except (KeyError, Exception):
+            return None
+
+    def get_config_file(self, ref: str) -> bytes | None:
+        """Return .serpentine.toml bytes at ref, or None if not present."""
+        import pygit2
+
+        try:
+            obj = self._repo.revparse_single(ref)
+            if hasattr(obj, "peel"):
+                try:
+                    commit = obj.peel(pygit2.Commit)
+                except Exception:
+                    commit = obj
+            else:
+                commit = obj
+            tree = commit.peel(pygit2.Tree)
+            entry = tree[".serpentine.toml"]
+            blob = self._repo.get(entry.id)
+            return bytes(blob.data)
+        except (KeyError, Exception):
+            return None
 
     def _walk_tree(self, tree: object, prefix: str, result: dict[str, bytes], extensions: set[str]) -> None:
         import pygit2

@@ -534,13 +534,6 @@ class GraphStateManager:
             logger.error("Failed to parse graph JSON")
             self._graph_data = {"nodes": [], "edges": [], "metadata": {}}
 
-    def get_node_code(self, qualname: str) -> str | None:
-        """Return the source code block for a node by qualname, or None."""
-        with self._lock:
-            if self._analyzer is None:
-                return None
-            return self._analyzer.get_node_code(qualname)
-
     def get_graph_json(self) -> str:
         """Get the current graph state as a JSON string."""
         with self._lock:
