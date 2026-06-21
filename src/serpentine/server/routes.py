@@ -19,7 +19,6 @@ from starlette.responses import JSONResponse, Response
 from starlette.routing import Route, WebSocketRoute
 from starlette.websockets import WebSocket, WebSocketDisconnect
 
-from serpentine.adapters import DiskSourceProvider
 from serpentine.domain import apply_filters, get_catalog, inject_source
 from serpentine.server.websocket import ConnectionManager
 from serpentine.vcs.manager import VcsManager
@@ -208,7 +207,7 @@ def create_routes(
                     node = _find_node(graph_data.get("nodes", []), qualname)
                     code: str | None = None
                     if node:
-                        inject_source({"nodes": [node], "edges": []}, DiskSourceProvider())
+                        inject_source({"nodes": [node], "edges": []}, state_manager._analyzer)
                         code = node.get("code_block")
                     await websocket.send_json({
                         "type": "node_code",

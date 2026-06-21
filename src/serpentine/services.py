@@ -127,21 +127,59 @@ def apply_filters(
     return graph_data
 
 
-def inject_source(graph_data: dict[str, Any], provider: SourceProvider) -> None:
-    """Inject code_block into each node by fetching file contents via provider."""
-    file_cache: dict[str, list[str]] = {}
+def inject_source(graph_data: dict[str, Any], fm: Any) -> None:
+    """Inject code_block into each node using an in-memory FileManager.
+
+    Pass state_manager._analyzer (serve) or a pre-built FM (VCS snapshot).
+    For lazy per-file fetching over a VCS backend use inject_source_on_demand.
+    """
+    def _walk(nodes: list[dict[str, Any]]) -> None:
+        for node in nodes:
+            try:
+                code = fm.get_node_code(node["id"])
+                if code:
+                    node["code_block"] = code
+            except Exception:
+                pass
+            _walk(node.get("children", []))
+
+    _walk(graph_data.get("nodes", []))
+
+
+def inject_source_on_demand(graph_data: dict[str, Any], provider: SourceProvider) -> None:
+    """Inject code_block by fetching one file at a time via provider.
+
+    Builds a small FileManager per unique file_path, cached across nodes.
+    Uses get_file_at under the hood — cheap for sparse source requests.
+    """
+    from serpentine import _analyzer
+
+    fm_cache: dict[str, Any] = {}
+
+    def _fm_for(file_path: str) -> Any:
+        if file_path not in fm_cache:
+            content = provider.get_file(file_path)
+            if not content:
+                fm_cache[file_path] = None
+            else:
+                fm = _analyzer.FileManager()
+                fm.open_file(file_path, content)
+                fm.build_dependency_graph()
+                fm_cache[file_path] = fm
+        return fm_cache[file_path]
 
     def _walk(nodes: list[dict[str, Any]]) -> None:
         for node in nodes:
             file_path = node.get("file_path")
-            position = node.get("position")
-            if file_path and position is not None:
-                if file_path not in file_cache:
-                    content = provider.get_file(file_path)
-                    file_cache[file_path] = content.splitlines() if content else []
-                lines = file_cache[file_path]
-                if lines:
-                    node["code_block"] = "\n".join(lines[position[0]:position[1]])
+            if file_path:
+                fm = _fm_for(file_path)
+                if fm is not None:
+                    try:
+                        code = fm.get_node_code(node["id"])
+                        if code:
+                            node["code_block"] = code
+                    except Exception:
+                        pass
             _walk(node.get("children", []))
 
     _walk(graph_data.get("nodes", []))

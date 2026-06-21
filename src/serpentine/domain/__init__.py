@@ -19,6 +19,7 @@ from serpentine.services import (
     get_stats,
     ingest_ref,
     inject_source,
+    inject_source_on_demand,
 )
 
 __all__ = [
@@ -33,6 +34,7 @@ __all__ = [
     "get_catalog",
     "get_stats",
     "inject_source",
+    "inject_source_on_demand",
     # Source provider protocol
     "SourceProvider",
     # Ingestion

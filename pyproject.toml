@@ -73,4 +73,5 @@ dev = [
     "maturin>=1.9.4",
     "pre-commit>=4.6.0",
     "pytest>=8.0.0",
+    "hypothesis>=6.0",
 ]

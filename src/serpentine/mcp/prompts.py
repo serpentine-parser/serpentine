@@ -4,46 +4,45 @@ from fastmcp import FastMCP
 def register_prompts(mcp: FastMCP) -> None:
     @mcp.prompt()
     def build_selector(intent: str) -> str:
-        """Explains selector syntax and guides the agent to build the right selector."""
+        """Guide the agent to build a selector for the given intent."""
         return f"""\
 You want to select nodes from a Serpentine dependency graph to answer: "{intent}"
 
-**Selector syntax** (dbt-style):
-- `*.ClassName`       — a specific symbol by name, any module
-- `+*.Symbol`         — symbol + all upstream dependencies (what it calls)
-- `*.Symbol+`         — symbol + all downstream dependents (what calls it)
-- `N+*.Symbol+M`      — bounded hops: N upstream, M downstream
-- `@*.Symbol`         — full connected component
-- `mod.sub.*`         — all nodes in a module
-- `*.A,*.B`           — union of multiple patterns
+First, read the query guide for the full selector reference and decision tables:
+  Resource: `serpentine://docs/query-guide`
 
-**Recommended workflow:**
-1. Read `serpentine://{{repo_id}}/{{ref}}/catalog` to discover node IDs.
-2. Read `serpentine://{{repo_id}}/{{ref}}/stats` for graph scale.
-3. Call the `analyze` tool with a selector built from the catalog IDs.
+Then follow this workflow:
+1. Call `stats` tool with your repo_id and ref to understand graph scale.
+2. Call `catalog` tool to discover node IDs — filter by keyword if you know one.
+3. Call `analyze` with a selector built from those IDs.
 
-Start with the catalog resource now.
+Start by reading the query guide now.
 """
 
     @mcp.prompt()
     def analyze_repo(repo_id: str, ref: str, intent: str) -> str:
-        """Full workflow prompt: stats → catalog → selector → analyze."""
+        """Full workflow: read the query guide, orient with stats and catalog, then analyze."""
         return f"""\
 You are analyzing the repository `{repo_id}` at ref `{ref}`.
 
 Goal: {intent}
 
-**Step 1** — Read stats to understand scale:
-  Resource: `serpentine://{repo_id}/{ref}/stats`
+**Step 0** — Read the query guide to understand selector syntax and workflow:
+  Resource: `serpentine://docs/query-guide`
 
-**Step 2** — Read catalog to discover node IDs:
-  Resource: `serpentine://{repo_id}/{ref}/catalog`
+**Step 1** — Understand graph scale:
+  Call tool: `stats` with repo_id="{repo_id}", ref="{ref}"
 
-**Step 3** — Build a selector from catalog IDs, then call the `analyze` tool:
-  Tool: `analyze` with `repo_id="{repo_id}"`, `ref="{ref}"`, and a selector expression.
+**Step 2** — Discover node IDs:
+  Call tool: `catalog` with repo_id="{repo_id}", ref="{ref}"
+  Filter the results to find nodes relevant to your goal.
 
-If the ref has not been ingested yet, call the `ingest_ref` tool first:
-  Tool: `ingest_ref` with `repo_id="{repo_id}"`, `ref="{ref}"`
+**Step 3** — Query the graph:
+  Call tool: `analyze` with repo_id="{repo_id}", ref="{ref}", and a selector
+  built from the catalog IDs. Use source=true only after narrowing with a selector.
 
-Begin with Step 1.
+If you get a "not ingested" error at any step, call `ingest_ref` first:
+  Call tool: `ingest_ref` with repo_id="{repo_id}", ref="{ref}"
+
+Begin with Step 0.
 """
