@@ -22,9 +22,24 @@ def build_store() -> GraphStore:
         return LocalGraphStore(Path(raw))
 
     if backend == "gcs":
-        raise ConfigError("GCS store not yet implemented. Install serpentine[gcs] and use Phase 4.")
+        bucket = os.environ.get("SERPENTINE_GCS_BUCKET")
+        if not bucket:
+            raise ConfigError("SERPENTINE_GCS_BUCKET is required when SERPENTINE_STORE_BACKEND=gcs")
+        try:
+            from serpentine.storage.gcs import GcsGraphStore
+        except ImportError as exc:
+            raise ConfigError("GCS dependencies missing. Install serpentine[gcs].") from exc
+        return GcsGraphStore(bucket)
 
     if backend == "s3":
-        raise ConfigError("S3 store not yet implemented. Install serpentine[s3] and use Phase 4.")
+        bucket = os.environ.get("SERPENTINE_S3_BUCKET")
+        if not bucket:
+            raise ConfigError("SERPENTINE_S3_BUCKET is required when SERPENTINE_STORE_BACKEND=s3")
+        region = os.environ.get("SERPENTINE_S3_REGION")
+        try:
+            from serpentine.storage.s3 import S3GraphStore
+        except ImportError as exc:
+            raise ConfigError("S3 dependencies missing. Install serpentine[s3].") from exc
+        return S3GraphStore(bucket, region)
 
     raise ConfigError(f"Unknown SERPENTINE_STORE_BACKEND: {backend!r}. Expected: local, gcs, s3")

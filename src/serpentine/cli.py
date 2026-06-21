@@ -26,7 +26,7 @@ import uvicorn
 from serpentine import __version__
 from serpentine.cache import VcsRefCacheManager
 from serpentine.adapters import DiskSourceProvider
-from serpentine.domain import apply_filters, filter_by_origin, get_catalog, get_stats, inject_source
+from serpentine.domain import apply_filters, filter_by_origin, get_catalog, get_stats, inject_source, inject_source_on_demand
 from serpentine.server import create_app
 from serpentine.state import GraphStateManager
 from serpentine.vcs.backend import detect_backend
@@ -342,7 +342,7 @@ def analyze(
     if fmt == "text":
         lines: list[str] = []
         if source:
-            inject_source(graph_data, DiskSourceProvider())
+            inject_source_on_demand(graph_data, DiskSourceProvider())
             node_index = _build_node_index(graph_data.get("nodes", []))
             edges_by_caller: dict[str, list[dict[str, Any]]] = {}
             for e in graph_data.get("edges", []):
