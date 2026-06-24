@@ -1,6 +1,6 @@
 [project]
 name = "serpentine-parser"
-version = "0.3.3"
+version = "0.4.0"
 description = "Fast dependency graph analysis and visualization for Python, JavaScript/TypeScript, Rust, and Terraform projects"
 readme = "README.md"
 requires-python = ">=3.10"
