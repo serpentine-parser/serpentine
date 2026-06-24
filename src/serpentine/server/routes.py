@@ -22,6 +22,7 @@ from starlette.websockets import WebSocket, WebSocketDisconnect
 
 from serpentine.selector import GraphSelector, filter_by_state
 from serpentine.server.websocket import ConnectionManager
+from serpentine.vcs.manager import VcsManager
 
 if TYPE_CHECKING:
     from serpentine.state import GraphStateManager
@@ -32,6 +33,7 @@ logger = logging.getLogger(__name__)
 def create_routes(
     state_manager: "GraphStateManager",
     connection_manager: ConnectionManager,
+    vcs_manager: VcsManager | None = None,
 ) -> list[Route | WebSocketRoute]:
     """
     Create all HTTP and WebSocket routes for the application.
@@ -178,6 +180,19 @@ def create_routes(
             yield node
             yield from _count_nodes(node.get("children", []))
 
+    async def get_vcs_refs(request: Request) -> Response:
+        """Return available VCS refs for the ref picker."""
+        if vcs_manager is None:
+            return Response(
+                content=json.dumps({"available": False, "refs": []}),
+                media_type="application/json",
+            )
+        refs = [{"id": r.id, "display": r.display, "kind": r.kind} for r in vcs_manager.list_refs()]
+        return Response(
+            content=json.dumps({"available": True, "refs": refs}),
+            media_type="application/json",
+        )
+
     async def websocket_endpoint(websocket: WebSocket) -> None:
         """
         WebSocket endpoint for real-time graph updates.
@@ -231,6 +246,54 @@ def create_routes(
                         "type": "node_code",
                         "data": {"qualname": qualname, "code": code},
                     })
+                elif data.get("action") == "set_vcs_comparison":
+                    action_data = data.get("data", {})
+                    from_ref: str = action_data.get("from", "@start")
+                    to_ref: str = action_data.get("to", "@current")
+
+                    try:
+                        # Resolve from_graph_json
+                        if from_ref == "@current":
+                            from_graph_json = json.dumps(state_manager._graph_data)
+                        elif from_ref == "@start":
+                            from_graph_json = json.dumps(state_manager._start_graph_data)
+                        elif vcs_manager is None:
+                            await websocket.send_json({"type": "error", "data": {"message": "VCS not available"}})
+                            continue
+                        else:
+                            valid_ids = {r.id for r in vcs_manager.list_refs()}
+                            if from_ref not in valid_ids:
+                                await websocket.send_json({"type": "error", "data": {"message": f"Unknown ref: {from_ref}"}})
+                                continue
+                            from_graph_json = vcs_manager.get_graph_at(from_ref)
+
+                        # Resolve to_graph_json
+                        to_graph_json: str | None
+                        if to_ref == "@current":
+                            to_graph_json = None
+                        elif to_ref == "@start":
+                            to_graph_json = json.dumps(state_manager._start_graph_data)
+                        elif vcs_manager is None:
+                            await websocket.send_json({"type": "error", "data": {"message": "VCS not available"}})
+                            continue
+                        else:
+                            valid_ids = {r.id for r in vcs_manager.list_refs()}
+                            if to_ref not in valid_ids:
+                                await websocket.send_json({"type": "error", "data": {"message": f"Unknown ref: {to_ref}"}})
+                                continue
+                            to_graph_json = vcs_manager.get_graph_at(to_ref)
+
+                        state_manager.set_vcs_comparison(from_graph_json, to_graph_json)
+                        await connection_manager.send_graph_update(state_manager.get_graph_json())
+                    except Exception as e:
+                        logger.error(f"[vcs] set_vcs_comparison failed: {e}", exc_info=True)
+                        await websocket.send_json({"type": "error", "data": {"message": f"Comparison failed: {e}"}})
+                elif data.get("action") == "clear_vcs_comparison":
+                    state_manager.clear_vcs_comparison()
+                    await connection_manager.send_graph_update(state_manager.get_graph_json())
+                elif data.get("action") == "update_start":
+                    state_manager.update_start()
+                    await connection_manager.send_graph_update(state_manager.get_graph_json())
                 else:
                     logger.debug(f"Unknown message type: {data.get('type')}")
 
@@ -244,5 +307,6 @@ def create_routes(
         Route("/api/health", health, methods=["GET"]),
         Route("/api/graph", get_graph, methods=["GET"]),
         Route("/api/catalog", get_catalog, methods=["GET"]),
+        Route("/api/vcs/refs", get_vcs_refs, methods=["GET"]),
         WebSocketRoute("/ws", websocket_endpoint),
     ]

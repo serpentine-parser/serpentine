@@ -1,15 +1,14 @@
-import {
-  IconCamera,
-  IconDownload,
-  IconSearch,
-  IconSettings,
-  IconX,
-} from "@tabler/icons-react";
-import { useEffect, useMemo, useRef, useState } from "react";
-import type { Node } from "@domains/graph/model/types";
-import type { CfgEdgeData } from "@domains/graph/model/types";
 import type { EdgeType } from "@domains/graph/model/layoutTypes";
 import { ALL_EDGE_TYPES } from "@domains/graph/model/layoutTypes";
+import type { CfgEdgeData, Node } from "@domains/graph/model/types";
+import {
+    IconCamera,
+    IconDownload,
+    IconSearch,
+    IconSettings,
+    IconX,
+} from "@tabler/icons-react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 interface SearchBarProps {
   searchQuery: string;
@@ -32,8 +31,6 @@ interface SearchBarProps {
   setVisibleEdgeDepth: (v: number) => void;
   filteredEdgeTypes: EdgeType[];
   setFilteredEdgeTypes: (types: EdgeType[]) => void;
-  selectorState: string;
-  setStateFilter: (state: string) => void;
   onExportJson: () => void;
 }
 
@@ -58,8 +55,6 @@ export function SearchBar({
   setVisibleEdgeDepth,
   filteredEdgeTypes,
   setFilteredEdgeTypes,
-  selectorState,
-  setStateFilter,
   onExportJson,
 }: SearchBarProps) {
   const [showDropdown, setShowDropdown] = useState(false);
@@ -160,15 +155,19 @@ export function SearchBar({
     return names;
   };
 
+  const STATE_SUGGESTIONS = ["state:modified", "state:added", "state:deleted"];
+
   const partialMatches = useMemo(() => {
     if (!searchQuery.trim()) return [];
 
     const { cleanTerm } = parseQueryTerm(searchQuery);
     if (!cleanTerm) return [];
 
-    return flattenNodeNames(catalogNodes).filter((name: string) =>
+    const stateMatches = STATE_SUGGESTIONS.filter((s) => s.includes(cleanTerm));
+    const nodeMatches = flattenNodeNames(catalogNodes).filter((name: string) =>
       name.toLowerCase().includes(cleanTerm),
     );
+    return [...stateMatches, ...nodeMatches];
   }, [searchQuery, catalogNodes]);
 
   const excludeMatches = useMemo(() => {
@@ -623,32 +622,6 @@ export function SearchBar({
                         className="ml-2 rounded border-gray-300 dark:border-slate-600 text-blue-600 focus:ring-blue-500 dark:bg-slate-700"
                       />
                     </label>
-
-                <div className="mb-3">
-                    <div className="text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">
-                      Change State Filter
-                    </div>
-                    {(["modified", "added", "deleted"] as const).map((s) => {
-                      const active = selectorState.split(",").filter(Boolean);
-                      const checked = active.includes(s);
-                      return (
-                        <label key={s} className="flex items-center justify-between mb-1">
-                          <span className="text-sm text-gray-700 dark:text-gray-200 capitalize">{s}</span>
-                          <input
-                            type="checkbox"
-                            checked={checked}
-                            onChange={() => {
-                              const next = checked
-                                ? active.filter((x) => x !== s)
-                                : [...active, s];
-                              setStateFilter(next.join(","));
-                            }}
-                            className="ml-2 rounded border-gray-300 dark:border-slate-600 text-blue-600 focus:ring-blue-500 dark:bg-slate-700"
-                          />
-                        </label>
-                      );
-                    })}
-                  </div>
 
                 <div className="mb-3">
                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">

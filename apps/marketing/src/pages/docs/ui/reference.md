@@ -15,7 +15,52 @@ This page documents every control, setting, and keyboard shortcut in the Serpent
 The header sits at the top of every page. It contains:
 
 - **Logo** — links back to the Serpentine homepage.
+- **VCS compare toolbar** (center) — visible when running inside a git repository with the `[git]` extra installed. See [VCS compare toolbar](#vcs-compare-toolbar) below.
 - **Settings button** (user avatar icon, top right) — opens the settings dropdown.
+
+### VCS compare toolbar
+
+The compare toolbar appears when `serpentine serve` detects a git repository and the `[git]` optional extra is installed. It lets you compare any two refs and overlay structural changes on the graph.
+
+```
+compare  [base ref] ← [compare ref]
+```
+
+The `←` arrow reads "compare ref compared against base ref" — the same direction as a GitHub pull request.
+
+#### Ref dropdowns
+
+Each dropdown lists:
+
+| Entry | Meaning |
+|-------|---------|
+| **Current (live)** | The graph as it currently exists on disk |
+| **At checkpoint** | The snapshot saved with the Checkpoint button |
+| Branches | All local git branches |
+| Tags | All git tags |
+| Recent commits | The last 100 commits on HEAD, shown as short hash + message |
+
+Type in the search box inside each dropdown to filter. Full keyboard navigation is supported: `↓`/`↑` to move, `Enter` to select, `Escape` to close. Clicking outside also closes the dropdown.
+
+#### Checkpoint button
+
+The **Checkpoint** button (flag icon) marks the current live graph as the comparison baseline. This lets you track changes made during a session without committing to git. The checkpoint is held in server memory and cleared on server restart.
+
+#### Change overlays
+
+After selecting refs, every node in the graph is annotated:
+
+| Color | Status | Meaning |
+|-------|--------|---------|
+| Sky blue | Added | New in the compare ref |
+| Amber | Modified | Exists in both refs but dependency surface changed |
+| Red | Deleted | Existed in base, gone in compare (shown as ghost node) |
+
+Unchanged nodes remain visible for structural context.
+
+#### Persistence
+
+The selected comparison is saved to `localStorage`. On page reload, Serpentine automatically replays the `set_vcs_comparison` action so overlays reappear without any action needed.
 
 ### Settings dropdown
 
@@ -110,15 +155,17 @@ Three icon buttons appear in the sidebar header when the sidebar is not collapse
 
 ### Change indicators
 
-When Serpentine detects that files on disk have changed since the graph was last loaded, it marks affected nodes with a colored dot and a text color change:
+Nodes are annotated with colored indicators in two cases: when files change on disk (file-watch mode) and when a VCS comparison is active.
 
-| Color | Status |
-|-------|--------|
-| Sky blue | Added — new node |
-| Amber | Modified — node's source changed |
-| Red + strikethrough | Deleted — node no longer exists |
+| Color | Status | Meaning |
+|-------|--------|---------|
+| Sky blue | Added | New node (not in the base ref / previous state) |
+| Amber | Modified | Node exists in both states but changed |
+| Red + strikethrough | Deleted | Node existed before but is now gone |
 
-A **Clear changes** button appears at the top of the tree when any change indicators are present. Clicking it removes all indicators without reloading the graph.
+A **Dismiss** button appears on each changed node. In file-watch mode, a **Clear changes** button appears at the top of the tree to remove all indicators at once.
+
+For VCS comparisons, change indicators reflect the structural diff between the selected refs — not file timestamps. See [VCS Integration](/docs/vcs/overview) for details.
 
 ---
 
@@ -185,8 +232,10 @@ Type a [selector expression](/docs/querying/selectors) to filter the graph to a 
 | `my_module+` | `my_module` plus all nodes that depend on it (downstream) |
 | `@core` | The full connected component containing `core` |
 | `a,b,c` | Union — include all nodes matching any of these selectors |
+| `state:modified` | Only nodes with that change status (also `state:added`, `state:deleted`) |
+| `+state:modified` | Modified nodes plus all their upstream dependencies |
 
-As you type, an autocomplete dropdown shows up to five matching node IDs from the full graph. Use arrow keys to navigate and Enter to select, or click a match.
+As you type, an autocomplete dropdown shows up to five matching node IDs from the full graph — including `state:modified`, `state:added`, and `state:deleted` suggestions when the input contains `state`. Use arrow keys to navigate and Enter to select, or click a match.
 
 ### Exclude field
 
@@ -214,10 +263,6 @@ Click the gear icon to open the settings popover.
 | **Include third-party packages** | Off | Show nodes imported from installed third-party packages (e.g. `requests`, `numpy`) |
 
 These filters apply on top of any selector query.
-
-#### Change state filter
-
-Three checkboxes — **Modified**, **Added**, **Deleted** — that filter the graph to show only nodes with those change statuses. Useful for reviewing what changed in a file edit without running a selector query.
 
 #### Edge depth visibility
 

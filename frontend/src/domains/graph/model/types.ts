@@ -84,3 +84,9 @@ export type ZoomBounds = {
   minZoom: number;
   maxZoom: number;
 };
+
+export type GraphState = {
+  allNodes: Node[];
+  includeStandardPackages: boolean;
+  includeThirdPartyPackages: boolean;
+};

@@ -107,6 +107,34 @@ serpentine analyze . --select "+src.auth.*" --exclude "*test*" --pretty
 
 > `**` is equivalent to `*` — both match across dots.
 
+## State selectors
+
+When a VCS comparison is active (or after file changes are detected), nodes carry a `change_status` field. The `state:` method lets you filter the graph to only nodes with a given status:
+
+| Selector | Meaning |
+|----------|---------|
+| `state:modified` | Nodes whose dependency surface changed between the two refs |
+| `state:added` | Nodes that are new in the compare ref |
+| `state:deleted` | Nodes that existed in the base ref but are gone now |
+
+`state:` composes with all graph operators:
+
+```bash
+# All modified nodes plus everything they depend on
+serpentine analyze . --select "+state:modified" --pretty
+
+# Full connected component of every added node
+serpentine analyze . --select "@state:added" --pretty
+
+# Modified nodes plus 2 hops upstream
+serpentine analyze . --select "2+state:modified" --pretty
+
+# Everything modified or added (union)
+serpentine analyze . --select "state:modified,state:added" --pretty
+```
+
+State selectors return an empty set when no comparison is active (no `change_status` is set). Use `--compare <ref>` to activate a comparison from the CLI. See [VCS Integration](/docs/vcs/overview) for the full feature.
+
 ## Compact output for large graphs
 
 Use `--edges-only` to get just the edge list — much smaller than the full node tree, and sufficient for agents that only need to trace call chains:

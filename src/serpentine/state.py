@@ -56,6 +56,8 @@ class GraphStateManager:
         self._lock = threading.RLock()
         self._broadcast_callback: Callable[[], None] | None = None
         self._analyzer: Any = None  # The Rust FileManager
+        self._start_graph_data: dict[str, Any] = {"nodes": [], "edges": []}
+        self._vcs_frozen: bool = False
 
         # Load configuration
         self._config = Config.load(project_path or Path.cwd())
@@ -105,6 +107,8 @@ class GraphStateManager:
                     cached_json = None if force_fresh else cache.load(fp)
                     if cached_json is not None:
                         self._update_state(cached_json)
+                        if not self._start_graph_data.get("nodes"):
+                            self._start_graph_data = self._graph_data.copy()
                         logger.info(
                             f"Analysis complete (cached): {self.node_count} nodes, {self.edge_count} edges"
                         )
@@ -113,6 +117,8 @@ class GraphStateManager:
                         return
                     # Cache miss (or force_fresh): full analysis reusing already-discovered source_files.
                     self._do_analysis(project_path, source_files)
+                    if not self._start_graph_data.get("nodes"):
+                        self._start_graph_data = self._graph_data.copy()
                     # Save using the fingerprint computed above — no re-scan needed.
                     try:
                         cache.save(fp, self._graph_json)
@@ -138,8 +144,8 @@ class GraphStateManager:
                     f"Analysis complete: {self.node_count} nodes, {self.edge_count} edges"
                 )
 
-                # Notify listeners
-                if self._broadcast_callback:
+                # Notify listeners (suppressed during frozen VCS comparison on file-watcher updates)
+                if self._broadcast_callback and not (self._vcs_frozen and changed_files is not None):
                     self._broadcast_callback()
 
             except Exception as e:
@@ -459,6 +465,47 @@ class GraphStateManager:
         self._ghost_nodes.clear()
         self._edge_change_status.clear()
         self._deleted_edge_data.clear()
+
+    def set_vcs_comparison(self, from_graph_json: str, to_graph_json: str | None) -> None:
+        """
+        Activate VCS comparison mode.
+
+        from_graph_json: baseline (older/left ref).
+        to_graph_json: None → diff against live graph (live updates continue);
+                       str  → diff two historical snapshots (frozen, live updates suppressed).
+        """
+        with self._lock:
+            self._node_change_status.clear()
+            self._ghost_nodes.clear()
+            self._edge_change_status.clear()
+            self._deleted_edge_data.clear()
+            self._previous_graph_data = json.loads(from_graph_json)
+            if to_graph_json is not None:
+                self._vcs_frozen = True
+                self._update_state(to_graph_json)
+            else:
+                self._vcs_frozen = False
+            self._compute_change_status({})
+
+    def clear_vcs_comparison(self) -> None:
+        """Return to normal file-watcher diff mode. Restores live updates if frozen."""
+        with self._lock:
+            self._vcs_frozen = False
+            self._previous_graph_data = {"nodes": [], "edges": []}
+            self._node_change_status.clear()
+            self._ghost_nodes.clear()
+            self._edge_change_status.clear()
+            self._deleted_edge_data.clear()
+
+    def update_start(self) -> None:
+        """Move the @start anchor to the current live graph, clearing the change overlay."""
+        with self._lock:
+            self._start_graph_data = self._graph_data.copy()
+            self._previous_graph_data = self._graph_data.copy()
+            self._node_change_status.clear()
+            self._ghost_nodes.clear()
+            self._edge_change_status.clear()
+            self._deleted_edge_data.clear()
 
     def _find_source_files(self, project_path: Path) -> list[Path]:
         """Find all supported source files in a project using a single directory walk."""

@@ -5,7 +5,7 @@ import { edgeUtils } from '../lib/edgeUtils';
 import { PositionHints, WorkerLayoutEngine } from '../lib/layout';
 import { layoutCache } from '../lib/layoutPersistence';
 import { NodeMovement } from '../lib/movement';
-import { flattenCfgNodes, nodeUtils } from '../lib/nodeUtils';
+import { nodeUtils } from '../lib/nodeUtils';
 import { SelectionAndHighlighting } from '../lib/selectionAndHighlighting';
 import { ALL_EDGE_TYPES, EdgeType, LayoutSettings } from './layoutTypes';
 import { Edge, Node, Viewport, ZoomBounds } from './types';
@@ -66,7 +66,6 @@ export type GraphSlice = {
   wsSend: ((msg: object) => void) | null;
   setWsSend: (fn: (msg: object) => void) => void;
   dismissChange: (nodeId: string) => void;
-  dismissAllChanges: () => void;
   sidebarExpansionSignal: { type: "expand" | "collapse"; nodeId: string | null } | null;
   setSidebarExpansionSignal: (signal: { type: "expand" | "collapse"; nodeId: string | null } | null) => void;
   expandAll: () => void;
@@ -317,7 +316,7 @@ export const createGraphSlice: StateCreator<any, [], [], GraphSlice> = (set, get
         nodes.forEach((node) => { if (node.highlighted) highlightedIds.add(node.id); if (node.children) collectHighlighted(node.children); });
       };
       collectHighlighted(highlightedNodes);
-      const highlightedEdges = state.visibleEdges.map((edge) => ({
+      const highlightedEdges = state.visibleEdges.map((edge: Edge) => ({
         ...edge, highlighted: highlightedIds.has(edge.source) && highlightedIds.has(edge.target),
       }));
       set({ selectedNodeId, nodes: highlightedNodes, visibleEdges: highlightedEdges });
@@ -425,20 +424,6 @@ export const createGraphSlice: StateCreator<any, [], [], GraphSlice> = (set, get
             : { ...n, children: n.children ? updateNodes(n.children) : undefined }
         );
     set({ nodes: updateNodes(state.nodes) });
-  },
-
-  dismissAllChanges: () => {
-    const state = get();
-    state.wsSend?.({ action: "dismiss_all_changes" });
-    const clearNodes = (nodes: Node[]): Node[] =>
-      nodes
-        .filter((n) => !n.isGhost)
-        .map((n) => ({
-          ...n,
-          changeStatus: null,
-          children: n.children ? clearNodes(n.children) : undefined,
-        }));
-    set({ nodes: clearNodes(state.nodes) });
   },
 
   setSidebarExpansionSignal: (signal) => {

@@ -18,6 +18,7 @@ Serpentine builds a **code reference graph** for Python, JavaScript/TypeScript, 
 - **Full reference resolution**: Traces calls, type annotations, assignments, and inheritance — not just import edges
 - **Interactive graph**: Expandable nodes, search, pan/zoom, collapsible modules
 - **Real-time updates**: File watcher pushes changes via WebSocket
+- **VCS integration**: Compare any two git refs and see added, modified, and deleted nodes highlighted on the graph
 - **Agent-ready CLI**: Structured JSON output with selectors for use in AI agent workflows
 
 ### What counts as a code reference?
@@ -304,6 +305,52 @@ Each edge has a `from` and `to` field with node IDs, and a `type` field:
 | `has-a`      | A variable holds an instance of a class (constructor call)                       |
 | `references` | One entity names another without calling it (assignment, annotation, expression) |
 | `is-a`       | Inheritance — one class extends another                                          |
+
+---
+
+## VCS Integration
+
+When Serpentine is run inside a git repository, it automatically detects available refs (branches, tags, and recent commits) and enables the **compare** toolbar in the UI.
+
+### Comparing refs
+
+Click the compare toolbar to select a baseline ref and a target ref. Serpentine analyzes the graph at each ref and overlays change status on every node:
+
+| Status | Meaning |
+|---|---|
+| `modified` | Node exists in both refs but its dependencies changed |
+| `added` | Node exists in the target ref but not the baseline |
+| `deleted` | Node existed in the baseline ref but was removed |
+
+Unchanged nodes remain visible for context.
+
+### Filtering by state
+
+Use the `state:` selector method in the search bar to filter the graph to only changed nodes:
+
+```
+state:modified
+state:added
+state:deleted
+```
+
+Selectors compose with all graph operators:
+
+```
+# All nodes modified on the current branch, plus their upstream dependencies
++state:modified
+
+# Full connected component of every added node
+@state:added
+```
+
+### Checkpoints
+
+The **checkpoint** button marks the current live graph state as the comparison baseline. This is useful when you want to track changes made during a session rather than comparing against a git ref.
+
+### Configuration
+
+Files excluded via `.serpentine.yml` (`exclude_dirs`, `exclude_patterns`) are excluded from VCS snapshot analysis as well — ensuring consistent results between live analysis and historical comparison.
 
 ---
 

@@ -2,7 +2,7 @@ import { Edge, Node } from '../model/types';
 import { nodeUtils } from './nodeUtils';
 
 export function getSimpleEdges(allEdges: Edge[], nodes: Node[], maxDepth: number = Infinity): Edge[] {
-  const edgePriority: Record<Edge["type"], number> = { calls: 3, "is-a": 2, "has-a": 1, references: 1 };
+  const edgePriority: Record<Edge["type"], number> = { calls: 3, "is-a": 2, "has-a": 1, references: 1, imports: 1 };
   const allNodeIds = new Set<string>();
   const visibleNodeIds = new Set<string>();
 

@@ -173,8 +173,12 @@ class GraphSelector:
 
             if at_op:
                 # @pattern — full connected component
-                matched = self._match_pattern(base_pattern)
-                selected.update(self._expand_component(matched))
+                matched = self._match_state(base_pattern[len("state:"):]) if base_pattern.startswith("state:") else self._match_pattern(base_pattern)
+                roots: Set[str] = set()
+                for node_id in matched:
+                    roots.add(node_id)
+                    roots.update(self._get_all_descendants(node_id))
+                selected.update(self._expand_component(roots))
                 continue
 
             # left_n/right_n are None when the +/N+ prefix/suffix is absent entirely.
@@ -185,7 +189,7 @@ class GraphSelector:
             up_depth = int(left_n) if left_n else None    # None = unlimited
             down_depth = int(right_n) if right_n else None  # None = unlimited
 
-            matched = self._match_pattern(base_pattern)
+            matched = self._match_state(base_pattern[len("state:"):]) if base_pattern.startswith("state:") else self._match_pattern(base_pattern)
             expanded = matched.copy()
 
             for node_id in matched:
@@ -221,6 +225,14 @@ class GraphSelector:
                     visited.add(neighbor)
                     queue.append((neighbor, depth + 1))
         return visited
+
+    def _match_state(self, value: str) -> Set[str]:
+        """Match nodes by change_status value."""
+        return {
+            node_id
+            for node_id, node in self.flat_nodes.items()
+            if node.get("change_status") == value
+        }
 
     def _match_pattern(self, pattern: str) -> Set[str]:
         """Match pattern against flat node ids using glob matching."""

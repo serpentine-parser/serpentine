@@ -1,13 +1,13 @@
+import { useGraphStore } from '@store';
 import { useQuery } from '@tanstack/react-query';
 import { DetailPanel } from '@ui/components/DetailPanel';
 import { GraphContainer } from '@ui/components/GraphContainer';
 import Header from '@ui/components/Header';
 import { SearchBar } from '@ui/components/SearchBar';
 import { Shell } from '@ui/components/Shell';
-import { Sidebar, SidebarExpansionSignal } from '@ui/components/Sidebar';
+import { Sidebar } from '@ui/components/Sidebar';
 import { useTheme } from '@ui/lib/ThemeContext';
 import { useEffect, useMemo, useState } from 'react';
-import { useGraphStore } from '@store';
 import { loadData } from '../domains/graph/api';
 
 export default function GraphPage() {
@@ -38,7 +38,6 @@ export default function GraphPage() {
   const findNodeById = useGraphStore((s) => s.findNodeById);
   const toggleNodeCollapse = useGraphStore((s) => s.toggleNodeCollapse);
   const dismissChange = useGraphStore((s) => s.dismissChange);
-  const dismissAllChanges = useGraphStore((s) => s.dismissAllChanges);
   const expandParentNodes = useGraphStore((s) => s.expandParentNodes);
   const moveChildWithConstraints = useGraphStore((s) => s.moveChildWithConstraints);
   const expandChildren = useGraphStore((s) => s.expandChildren);
@@ -74,8 +73,6 @@ export default function GraphPage() {
   const executeSearch = useGraphStore((s) => s.executeSearch);
   const selectorQuery = useGraphStore((s) => s.selectorQuery);
   const selectorExclude = useGraphStore((s) => s.selectorExclude);
-  const selectorState = useGraphStore((s) => s.selectorState);
-  const setStateFilter = useGraphStore((s) => s.setStateFilter);
   const includeStandardPackages = useGraphStore((s) => s.includeStandardPackages);
   const includeThirdPartyPackages = useGraphStore((s) => s.includeThirdPartyPackages);
   const setIncludeStandardPackages = useGraphStore((s) => s.setIncludeStandardPackages);
@@ -104,8 +101,8 @@ export default function GraphPage() {
   const activeExclude = selectorExclude || urlParams.exclude;
 
   const { data, isFetching } = useQuery({
-    queryKey: ['graph', activeSelect, activeExclude, selectorState],
-    queryFn: () => loadData(activeSelect || undefined, activeExclude || undefined, selectorState || undefined),
+    queryKey: ['graph', activeSelect, activeExclude],
+    queryFn: () => loadData(activeSelect || undefined, activeExclude || undefined),
   });
 
   const loadingPhase: "data" | "layout" | null = isFetching ? "data" : storeLoadingPhase;
@@ -138,7 +135,6 @@ export default function GraphPage() {
       selectNode={selectNode}
       expandParentNodes={expandParentNodes}
       flipLayoutDirection={flipLayoutDirection}
-      dismissAllChanges={dismissAllChanges}
       graphNodes={nodes}
       expandAll={expandAll}
       collapseAll={collapseAll}
@@ -229,8 +225,6 @@ export default function GraphPage() {
                 setVisibleEdgeDepth={setVisibleEdgeDepth}
                 filteredEdgeTypes={filteredEdgeTypes}
                 setFilteredEdgeTypes={setFilteredEdgeTypes}
-                selectorState={selectorState}
-                setStateFilter={setStateFilter}
                 onExportJson={handleExportJson}
               />
             </div>

@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 import LogoTitle from "./LogoTitle";
 import AccountMenu from "./menu";
 import { UserAvatar } from "./UserAvatar";
+import { VcsRefPicker } from "@ui/components/VcsRefPicker";
 import type { Theme } from "@ui/lib/ThemeContext";
 import type { LayoutSettings } from "@domains/graph/model/layoutTypes";
 
@@ -34,6 +35,7 @@ export default function Header({
           <LogoTitle />
         </a>
         <div className="flex items-center gap-4">
+          <VcsRefPicker />
           <div className="relative">
             {menuOpen && createPortal(
               <div className="fixed inset-0 z-40" onClick={() => setMenuOpen(false)} />,

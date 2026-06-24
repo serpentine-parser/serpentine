@@ -23,9 +23,12 @@ import click
 import uvicorn
 
 from serpentine import __version__
+from serpentine.cache import VcsRefCacheManager
 from serpentine.selector import GraphSelector, filter_by_state
 from serpentine.server import create_app
 from serpentine.state import GraphStateManager
+from serpentine.vcs.backend import detect_backend
+from serpentine.vcs.manager import VcsManager
 from serpentine.watcher import FileWatcher
 
 _DEFAULT_CONFIG_YAML = """\
@@ -135,8 +138,15 @@ def serve(
         f"✅ Found {state_manager.node_count} nodes, {state_manager.edge_count} edges"
     )
 
+    # Set up VCS manager if a backend is available
+    vcs_manager: VcsManager | None = None
+    backend = detect_backend(project_path)
+    if backend is not None:
+        vcs_manager = VcsManager(backend, VcsRefCacheManager(project_path), state_manager.config)
+        click.echo("🔀 VCS integration enabled")
+
     # Create the web application
-    app = create_app(state_manager, static_dir=_get_static_dir())
+    app = create_app(state_manager, static_dir=_get_static_dir(), vcs_manager=vcs_manager)
 
     # Set up file watcher if enabled
     watcher: FileWatcher | None = None
@@ -255,6 +265,13 @@ def serve(
     default=False,
     help="Include assignment nodes in text output (default: excluded, only with --format text)",
 )
+@click.option(
+    "--compare",
+    "compare_ref",
+    type=str,
+    default=None,
+    help="VCS ref to compare against (branch, tag, or commit hash). Shows added/removed/modified nodes.",
+)
 def analyze(
     path: str,
     output: str | None,
@@ -270,6 +287,7 @@ def analyze(
     fmt: str,
     source: bool,
     include_assignments: bool,
+    compare_ref: str | None,
 ) -> None:
     """Analyze a project and output the code reference graph.
 
@@ -286,6 +304,20 @@ def analyze(
     project_path = Path(path).resolve()
     state_manager = GraphStateManager(project_path)
     state_manager.analyze_project(project_path, force_fresh=source)
+
+    if compare_ref is not None:
+        backend = detect_backend(project_path)
+        if backend is None:
+            raise click.ClickException(
+                "No VCS backend found. Is this a git repo? "
+                "Install git support with: pip install serpentine[git]"
+            )
+        try:
+            vcs_manager = VcsManager(backend, VcsRefCacheManager(project_path), state_manager.config)
+            from_graph_json = vcs_manager.get_graph_at(compare_ref)
+        except Exception as e:
+            raise click.ClickException(f"Could not resolve ref '{compare_ref}': {e}") from e
+        state_manager.set_vcs_comparison(from_graph_json, to_graph_json=None)
 
     # Get the graph data as a dict for post-processing
     graph_data = state_manager.get_graph_data()
@@ -421,6 +453,13 @@ def analyze(
     default="text",
     help="Output format: text (default) or json",
 )
+@click.option(
+    "--compare",
+    "compare_ref",
+    type=str,
+    default=None,
+    help="VCS ref to compare against (branch, tag, or commit hash). Shows added/removed/modified nodes.",
+)
 def catalog(
     path: str,
     filters: tuple[str, ...],
@@ -431,6 +470,7 @@ def catalog(
     pretty: bool,
     state: str | None,
     fmt: str,
+    compare_ref: str | None,
 ) -> None:
     """Flat list of all nodes for agent discovery.
 
@@ -447,6 +487,20 @@ def catalog(
     project_path = Path(path).resolve()
     state_manager = GraphStateManager(project_path)
     state_manager.analyze_project(project_path)
+
+    if compare_ref is not None:
+        backend = detect_backend(project_path)
+        if backend is None:
+            raise click.ClickException(
+                "No VCS backend found. Is this a git repo? "
+                "Install git support with: pip install serpentine[git]"
+            )
+        try:
+            vcs_manager = VcsManager(backend, VcsRefCacheManager(project_path), state_manager.config)
+            from_graph_json = vcs_manager.get_graph_at(compare_ref)
+        except Exception as e:
+            raise click.ClickException(f"Could not resolve ref '{compare_ref}': {e}") from e
+        state_manager.set_vcs_comparison(from_graph_json, to_graph_json=None)
 
     graph_data = state_manager.get_graph_data()
 

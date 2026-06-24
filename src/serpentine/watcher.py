@@ -77,7 +77,7 @@ class FileWatcher:
         self._path = path
         self._on_change = on_change
         self._debounce_seconds = debounce_seconds
-        self._extensions = extensions or {".py", ".js", ".jsx", ".ts", ".tsx", ".rs"}
+        self._extensions = extensions or {".py", ".js", ".jsx", ".ts", ".tsx", ".rs", ".tf"}
 
         self._observer: Observer | None = None  # type: ignore
         self._handler = _DebouncedEventHandler(

@@ -12,7 +12,7 @@ When you run `serpentine serve`, Serpentine opens a browser window with an inter
 
 ## 1. Header
 
-The top bar runs the full width of the screen. It contains the Serpentine logo (which links to the homepage) and a settings button on the right. Click the settings button to open a dropdown with layout controls, spacing adjustments, theme switching, and expand/collapse-all shortcuts. See [Reference → Header](/docs/ui/reference#header) for every option.
+The top bar runs the full width of the screen. It contains the Serpentine logo on the left, a **VCS compare toolbar** in the center (visible when Serpentine is running inside a git repository with the `[git]` extra installed), and a settings button on the right. The compare toolbar lets you select any two refs and see structural changes highlighted on the graph. Click the settings button to open a dropdown with layout controls, spacing adjustments, theme switching, and expand/collapse-all shortcuts. See [Reference → Header](/docs/ui/reference#header) for every option.
 
 ## 2. Object Explorer
 
@@ -28,7 +28,7 @@ The central area is an SVG canvas showing the code reference graph. You can pan 
 
 ## 5. Search Bar
 
-The floating bar at the bottom of the canvas is the primary way to filter the graph. Type a selector expression in the include field (and optionally an exclude expression in the second field), then press Enter or click Search. The graph updates to show only the matching subgraph. A settings gear opens additional options: package filters, edge depth control, change state filters, and export actions. See [Reference → Search Bar](/docs/ui/reference#search-bar).
+The floating bar at the bottom of the canvas is the primary way to filter the graph. Type a selector expression in the include field (and optionally an exclude expression in the second field), then press Enter or click Search. The graph updates to show only the matching subgraph. Type `state:` to see autocomplete suggestions for filtering by change status (`state:modified`, `state:added`, `state:deleted`) — these compose with all graph operators. A settings gear opens additional options: package filters, edge depth control, edge type toggles, and export actions. See [Reference → Search Bar](/docs/ui/reference#search-bar).
 
 ---
 

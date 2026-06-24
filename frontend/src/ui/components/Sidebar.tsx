@@ -1,26 +1,24 @@
-import {
-  IconArrowsMaximize,
-  IconArrowsMinimize,
-  IconBraces,
-  IconChevronLeft,
-  IconChevronRight,
-  IconCircleDot,
-  IconFile,
-  IconFolder,
-  IconFolderOpen,
-  IconFunction,
-  IconGitBranch,
-  IconGitMerge,
-  IconHierarchy2,
-  IconLayoutGrid,
-  IconPlayerPlay,
-  IconRefresh,
-  IconSearch,
-  IconVariable,
-  IconX,
-} from "@tabler/icons-react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Node } from "@domains/graph/model/types";
+import {
+    IconArrowsMaximize,
+    IconArrowsMinimize,
+    IconBraces,
+    IconChevronLeft,
+    IconChevronRight,
+    IconCircleDot,
+    IconFile,
+    IconFolder,
+    IconFolderOpen,
+    IconFunction,
+    IconGitBranch,
+    IconGitMerge,
+    IconLayoutGrid,
+    IconPlayerPlay,
+    IconSearch,
+    IconVariable,
+    IconX
+} from "@tabler/icons-react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 type ChangeStatusEntry = { changeStatus?: string; isGhost?: boolean };
 
@@ -166,7 +164,7 @@ function TreeNode({
   return (
     <div>
       <div
-        ref={isSelected ? selectedRef : undefined}
+        ref={isSelected ? (selectedRef as React.RefObject<HTMLDivElement>) : undefined}
         className={`flex items-center gap-2 py-1 px-2 rounded cursor-pointer hover:bg-gray-100 dark:hover:bg-slate-800 ${
           isSelected
             ? "bg-blue-100 dark:bg-blue-900/30 text-blue-900 dark:text-blue-100"
@@ -257,7 +255,6 @@ export interface SidebarProps {
   selectNode: (id: string | null) => void;
   expandParentNodes: (id: string) => void;
   flipLayoutDirection: () => void;
-  dismissAllChanges: () => void;
   graphNodes: Node[];
   expandAll: () => void;
   collapseAll: () => void;
@@ -274,7 +271,6 @@ export function Sidebar({
   selectNode,
   expandParentNodes,
   flipLayoutDirection,
-  dismissAllChanges,
   graphNodes,
   expandAll,
   collapseAll,
@@ -306,14 +302,6 @@ export function Sidebar({
       document.removeEventListener("mouseup", onUp);
     };
   }, []);
-
-  const hasChanges = useMemo(() => {
-    const check = (nodeList: typeof graphNodes): boolean =>
-      nodeList.some(
-        (n) => n.changeStatus || n.isGhost || (n.children && check(n.children))
-      );
-    return check(graphNodes);
-  }, [graphNodes]);
 
   const { changeStatusLookup, ghostChildrenByParent } = useMemo(() => {
     const lookup: Record<string, ChangeStatusEntry> = {};
@@ -622,16 +610,6 @@ export function Sidebar({
         <>
           <div className="px-6 py-2 text-sm text-gray-500 dark:text-gray-400 border-b border-gray-100 dark:border-slate-700 flex items-center justify-between">
             <span>All objects ({allNodeCount})</span>
-            {hasChanges && (
-              <button
-                onClick={dismissAllChanges}
-                className="flex items-center gap-1 text-xs text-amber-600 dark:text-amber-400 hover:text-amber-800 dark:hover:text-amber-200 transition-colors"
-                title="Clear all change indicators"
-              >
-                <IconRefresh size={12} />
-                Clear changes
-              </button>
-            )}
           </div>
 
           <div className="px-4 py-3 border-b border-gray-100 dark:border-slate-700">

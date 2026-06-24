@@ -1,6 +1,6 @@
 export { createGraphSlice } from './model/slice';
 export type { GraphSlice } from './model/slice';
-export type { Node, Edge, Viewport, ZoomBounds, GraphState, CfgEdgeData, CfgNode, CfgEdge, CfgData } from './model/types';
+export type { Node, Edge, Viewport, ZoomBounds, GraphState, CfgEdgeData, CfgNode, CfgEdge, CfgData, CfgEdgeType } from './model/types';
 export { loadData, transformData, transformFlowGraph } from './api';
 export { nodeUtils, flattenCfgNodes } from './lib/nodeUtils';
 export { edgeUtils } from './lib/edgeUtils';

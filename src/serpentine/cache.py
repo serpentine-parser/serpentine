@@ -180,3 +180,76 @@ class PerFileCacheManager:
             entry.write_text(results_json, encoding="utf-8")
         except Exception as e:
             logger.debug(f"Per-file cache save failed for {file_path}: {e}")
+
+
+REFS_CACHE_SUBDIR = "refs"
+# Bump when VCS ref cache format changes in a breaking way.
+VCS_REF_CACHE_VERSION = 1
+
+
+class VcsRefCacheManager:
+    """
+    Cache for graphs computed from historical VCS commits.
+
+    Stored under .serpentine/refs/<key>.json, keyed by
+    sha256(commit_hash + ":" + config_fingerprint)[:24].
+
+    Historical commits are immutable so entries never expire — only
+    invalidated when the analyzer binary changes (same sentinel pattern
+    as PerFileCacheManager).
+    """
+
+    def __init__(self, project_path: Path) -> None:
+        self._cache_dir = project_path / CACHE_DIR / REFS_CACHE_SUBDIR
+        self._ensure_version()
+
+    def _version_tag(self) -> str:
+        package_dir = Path(__file__).parent
+        binary = _find_analyzer_binary(package_dir)
+        binary_mtime: int = 0
+        if binary:
+            try:
+                binary_mtime = binary.stat().st_mtime_ns
+            except OSError:
+                pass
+        return f"{VCS_REF_CACHE_VERSION}:{binary_mtime}"
+
+    def _ensure_version(self) -> None:
+        version_file = self._cache_dir / ".version"
+        expected = self._version_tag()
+        try:
+            if version_file.exists() and version_file.read_text(encoding="utf-8").strip() == expected:
+                return
+        except Exception:
+            pass
+        try:
+            if self._cache_dir.exists():
+                shutil.rmtree(self._cache_dir)
+        except Exception as e:
+            logger.debug(f"VCS ref cache clear failed: {e}")
+        try:
+            self._cache_dir.mkdir(parents=True, exist_ok=True)
+            version_file.write_text(expected + "\n", encoding="utf-8")
+        except Exception as e:
+            logger.debug(f"VCS ref cache version write failed: {e}")
+
+    def _entry_path(self, commit_hash: str, config_fp: str) -> Path:
+        key = hashlib.sha256(f"{commit_hash}:{config_fp}".encode()).hexdigest()[:24]
+        return self._cache_dir / f"{key}.json"
+
+    def get(self, commit_hash: str, config_fp: str) -> str | None:
+        try:
+            entry = self._entry_path(commit_hash, config_fp)
+            if entry.exists():
+                return entry.read_text(encoding="utf-8")
+        except Exception as e:
+            logger.debug(f"VCS ref cache load failed: {e}")
+        return None
+
+    def put(self, commit_hash: str, config_fp: str, graph_json: str) -> None:
+        try:
+            self._cache_dir.mkdir(parents=True, exist_ok=True)
+            entry = self._entry_path(commit_hash, config_fp)
+            entry.write_text(graph_json, encoding="utf-8")
+        except Exception as e:
+            logger.debug(f"VCS ref cache save failed: {e}")

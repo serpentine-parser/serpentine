@@ -6,7 +6,7 @@ import { getEdgeState } from "@ui/lib/nodeStyles";
 export type EdgeData = {
   source: string;
   target: string;
-  type: "calls" | "is-a" | "has-a" | "references";
+  type: "calls" | "is-a" | "has-a" | "references" | "imports";
   changeStatus?: "added" | "deleted" | null;
 };
 
