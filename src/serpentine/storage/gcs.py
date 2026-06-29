@@ -1,4 +1,5 @@
 import re
+from typing import Any
 
 _COMMIT_HASH_RE = re.compile(r"^[0-9a-f]{40}$")
 
@@ -22,6 +23,18 @@ class GcsGraphStore:
         self._validate_commit_hash(commit_hash)
         blob = self._bucket.blob(f"{repo_id}/{commit_hash}.json")
         blob.upload_from_string(graph_json, content_type="application/json")
+
+    def list_ingested(self, repo_id: str) -> list[dict[str, Any]]:
+        prefix = f"{repo_id}/"
+        result = []
+        for blob in self._bucket.list_blobs(prefix=prefix):
+            stem = blob.name[len(prefix):].removesuffix(".json")
+            if _COMMIT_HASH_RE.match(stem):
+                result.append({
+                    "commit_hash": stem,
+                    "ingested_at": blob.updated.isoformat() if blob.updated else None,
+                })
+        return result
 
     def _validate_commit_hash(self, commit_hash: str) -> None:
         if not _COMMIT_HASH_RE.match(commit_hash):

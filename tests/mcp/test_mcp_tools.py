@@ -52,7 +52,8 @@ def app_with_data(store, vcs, git_repo):
 def test_list_repos(app_no_data):
     result = _call(app_no_data, "list_repos", {})
     repos = json.loads(result.data)
-    assert "myrepo" in repos
+    repo_ids = [r["repo_id"] for r in repos]
+    assert "myrepo" in repo_ids
 
 
 # ---------------------------------------------------------------------------
@@ -76,9 +77,11 @@ def test_list_refs_unknown_repo(app_no_data):
 # analyze
 # ---------------------------------------------------------------------------
 
-def test_analyze_not_ingested_returns_recovery_message(app_no_data):
+def test_analyze_auto_ingests_when_not_yet_ingested(app_no_data):
+    # Auto-ingest: calling analyze on an un-ingested ref should succeed, not error
     result = _call(app_no_data, "analyze", {"repo_id": "myrepo", "ref": "main"})
-    assert "ingest_ref" in result.data or "not been ingested" in result.data
+    graph = json.loads(result.data)
+    assert "nodes" in graph
 
 
 def test_analyze_after_ingest_returns_graph(app_with_data):

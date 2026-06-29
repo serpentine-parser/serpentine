@@ -1,4 +1,5 @@
 import re
+from typing import Any
 
 _COMMIT_HASH_RE = re.compile(r"^[0-9a-f]{40}$")
 
@@ -37,6 +38,21 @@ class S3GraphStore:
             Body=graph_json.encode("utf-8"),
             ContentType="application/json",
         )
+
+    def list_ingested(self, repo_id: str) -> list[dict[str, Any]]:
+        prefix = f"{repo_id}/"
+        result = []
+        paginator = self._client.get_paginator("list_objects_v2")
+        for page in paginator.paginate(Bucket=self._bucket, Prefix=prefix):
+            for obj in page.get("Contents", []):
+                key = obj["Key"]
+                stem = key[len(prefix):].removesuffix(".json")
+                if _COMMIT_HASH_RE.match(stem):
+                    result.append({
+                        "commit_hash": stem,
+                        "ingested_at": obj["LastModified"].isoformat(),
+                    })
+        return result
 
     def _validate_commit_hash(self, commit_hash: str) -> None:
         if not _COMMIT_HASH_RE.match(commit_hash):

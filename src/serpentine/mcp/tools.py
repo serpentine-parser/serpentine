@@ -4,7 +4,6 @@ import logging
 from fastmcp import FastMCP
 
 from serpentine.adapters import VcsSourceProvider
-from serpentine.services import _validate_ref
 from serpentine.domain import (
     MissingConfigError,
     NotIngestedError,
@@ -12,9 +11,10 @@ from serpentine.domain import (
     get_catalog,
     get_graph,
     get_stats,
-    inject_source_on_demand,
     ingest_ref,
+    inject_source_on_demand,
 )
+from serpentine.services import _validate_ref
 from serpentine.storage.base import GraphStore
 from serpentine.vcs.manager import VcsManager
 
@@ -41,6 +41,16 @@ def _recovery_message(exc: Exception) -> str:
     return str(exc)
 
 
+def _ensure_ingested(vcs: VcsManager, store: GraphStore, repo_id: str, ref: str) -> str:
+    """Resolve ref to commit hash, auto-ingest if not yet stored. Returns commit hash."""
+    _validate_ref(vcs, repo_id, ref)
+    commit_hash = vcs._backend.resolve_to_commit_hash(ref)
+    if store.get(repo_id, commit_hash) is None:
+        logger.info(f"[mcp] auto-ingesting {repo_id}/{ref} ({commit_hash[:7]})")
+        ingest_ref(vcs, store, repo_id, ref, ignore_config=True)
+    return commit_hash
+
+
 def register_tools(
     mcp: FastMCP,
     store: GraphStore,
@@ -48,12 +58,44 @@ def register_tools(
 ) -> None:
     @mcp.tool()
     def list_repos() -> str:
-        """List all repo IDs available on this server.
+        """List all repos available on this server with ingestion status.
 
-        Call this first to discover what repos you can query. Use the returned
-        IDs in all other tools.
+        Returns each repo ID, its available refs, and which refs are already
+        ingested (ready to query immediately without waiting for ingestion).
+        Call this first to understand what's available.
         """
-        return json.dumps(sorted(vcs_managers.keys()), indent=2)
+        result = []
+        for repo_id, vcs in sorted(vcs_managers.items()):
+            ingested = store.list_ingested(repo_id)
+            ingested_by_hash = {r["commit_hash"]: r["ingested_at"] for r in ingested}
+
+            refs = []
+            for r in vcs.list_refs():
+                try:
+                    commit_hash = vcs._backend.resolve_to_commit_hash(r.id)
+                    refs.append(
+                        {
+                            "ref": r.id,
+                            "display": r.display,
+                            "kind": r.kind,
+                            "commit_hash": commit_hash[:7],
+                            "ingested": commit_hash in ingested_by_hash,
+                            "ingested_at": ingested_by_hash.get(commit_hash),
+                        }
+                    )
+                except Exception:
+                    refs.append(
+                        {
+                            "ref": r.id,
+                            "display": r.display,
+                            "kind": r.kind,
+                            "ingested": False,
+                        }
+                    )
+
+            result.append({"repo_id": repo_id, "refs": refs})
+
+        return json.dumps(result, indent=2)
 
     @mcp.tool()
     def list_refs(repo_id: str) -> str:
@@ -64,26 +106,31 @@ def register_tools(
         if repo_id not in vcs_managers:
             return _recovery_message(UnknownRepoError(repo_id))
         refs = vcs_managers[repo_id].list_refs()
-        return json.dumps([{"id": r.id, "display": r.display, "kind": r.kind} for r in refs], indent=2)
+        return json.dumps(
+            [{"id": r.id, "display": r.display, "kind": r.kind} for r in refs], indent=2
+        )
 
     @mcp.tool()
-    def catalog(repo_id: str, ref: str) -> str:
+    def catalog(repo_id: str, ref: str, filter: str | None = None) -> str:
         """Get the flat node list for a repo at a ref.
 
         Call this before analyze to discover node IDs and build a selector.
         Returns every node with its id, name, object_type, and file_path.
+
+        Always call stats first to understand graph scale. For large repos,
+        pass a glob filter to narrow results (e.g. filter="*auth*", filter="serpentine.mcp.*").
+        The repo is ingested automatically if needed.
         """
         if repo_id not in vcs_managers:
             return _recovery_message(UnknownRepoError(repo_id))
         try:
             vcs = vcs_managers[repo_id]
-            _validate_ref(vcs, repo_id, ref)
-            commit_hash = vcs._backend.resolve_to_commit_hash(ref)
+            commit_hash = _ensure_ingested(vcs, store, repo_id, ref)
             graph_json = store.get(repo_id, commit_hash)
-            if graph_json is None:
-                return _recovery_message(NotIngestedError(repo_id, ref))
-            return json.dumps(get_catalog(json.loads(graph_json)), indent=2)
-        except (NotIngestedError, UnknownRepoError) as e:
+            return json.dumps(
+                get_catalog(json.loads(graph_json), filter_str=filter), indent=2
+            )
+        except (NotIngestedError, UnknownRepoError, MissingConfigError) as e:
             return _recovery_message(e)
 
     @mcp.tool()
@@ -92,19 +139,16 @@ def register_tools(
 
         Call this first to understand graph scale before fetching the catalog or
         running analyze. Returns node_count, edge_count, nodes_by_type, edges_by_type.
+        The repo is ingested automatically if needed.
         """
         if repo_id not in vcs_managers:
             return _recovery_message(UnknownRepoError(repo_id))
         try:
             vcs = vcs_managers[repo_id]
-            _validate_ref(vcs, repo_id, ref)
-            commit_hash = vcs._backend.resolve_to_commit_hash(ref)
+            commit_hash = _ensure_ingested(vcs, store, repo_id, ref)
             graph_json = store.get(repo_id, commit_hash)
-            if graph_json is None:
-                return _recovery_message(NotIngestedError(repo_id, ref))
-            import json as _json
-            return _json.dumps(get_stats(_json.loads(graph_json)), indent=2)
-        except (NotIngestedError, UnknownRepoError) as e:
+            return json.dumps(get_stats(json.loads(graph_json)), indent=2)
+        except (NotIngestedError, UnknownRepoError, MissingConfigError) as e:
             return _recovery_message(e)
 
     @mcp.tool()
@@ -117,12 +161,12 @@ def register_tools(
     ) -> str:
         """Query the dependency graph for a repo at a ref.
 
+        The repo is ingested automatically if needed — no manual ingest step required.
+
         WORKFLOW — always follow this order:
         1. Call the `stats` tool to understand graph scale.
-        2. Call the `catalog` tool to discover node IDs.
+        2. Call the `catalog` tool (with a filter) to discover node IDs.
         3. Call this tool with a selector built from catalog IDs.
-
-        If you get a "not ingested" error, call ingest_ref first, then retry.
 
         SELECTOR SYNTAX (dbt-style):
         - `*.ClassName`     — a specific symbol by name
@@ -139,13 +183,18 @@ def register_tools(
             return _recovery_message(UnknownRepoError(repo_id))
         try:
             vcs = vcs_managers[repo_id]
-            graph_data = get_graph(store, vcs, repo_id, ref, select=select, exclude=exclude)
+            _ensure_ingested(vcs, store, repo_id, ref)
+            graph_data = get_graph(
+                store, vcs, repo_id, ref, select=select, exclude=exclude
+            )
             if source:
-                inject_source_on_demand(graph_data, VcsSourceProvider(vcs._backend, ref))
+                inject_source_on_demand(
+                    graph_data, VcsSourceProvider(vcs._backend, ref)
+                )
             else:
                 _strip_code(graph_data.get("nodes", []))
             return json.dumps(graph_data, indent=2)
-        except (NotIngestedError, UnknownRepoError) as e:
+        except (NotIngestedError, UnknownRepoError, MissingConfigError) as e:
             return _recovery_message(e)
 
     @mcp.tool()
@@ -154,13 +203,11 @@ def register_tools(
         ref: str,
         ignore_config: bool = False,
     ) -> str:
-        """Analyze a repo at a ref and store the graph for querying.
+        """Force re-analysis of a repo at a ref and store the graph.
 
-        Run this before calling analyze on a ref that has not been ingested yet.
-        The repo must have a .serpentine.toml in its root; pass ignore_config=true
-        to skip that requirement and use default settings.
-
-        After ingestion, call analyze to query the graph.
+        Use this to explicitly refresh a ref that may have changed, or to ingest
+        with a specific config setting. For normal querying, catalog/stats/analyze
+        auto-ingest as needed — you don't have to call this manually first.
         """
         if repo_id not in vcs_managers:
             return _recovery_message(UnknownRepoError(repo_id))
