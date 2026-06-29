@@ -145,6 +145,19 @@ def create_routes(
             media_type="application/json",
         )
 
+    async def get_vcs_refs(request: Request) -> Response:
+        """Return available VCS refs for the ref picker."""
+        if vcs_manager is None:
+            return Response(
+                content=json.dumps({"available": False, "refs": []}),
+                media_type="application/json",
+            )
+        refs = [{"id": r.id, "display": r.display, "kind": r.kind} for r in vcs_manager.list_refs()]
+        return Response(
+            content=json.dumps({"available": True, "refs": refs}),
+            media_type="application/json",
+        )
+
     async def websocket_endpoint(websocket: WebSocket) -> None:
         """
         WebSocket endpoint for real-time graph updates.
