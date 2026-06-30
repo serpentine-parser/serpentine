@@ -56,7 +56,8 @@ class GitHubApiBackend:
             if not items:
                 break
             for b in items:
-                refs.append(VcsRef(id=b["name"], display=b["name"], kind="branch"))
+                sha = (b.get("commit") or {}).get("sha")
+                refs.append(VcsRef(id=b["name"], display=b["name"], kind="branch", commit_hash=sha))
             if len(items) < 100:
                 break
             page += 1
@@ -68,7 +69,8 @@ class GitHubApiBackend:
             if not items:
                 break
             for t in items:
-                refs.append(VcsRef(id=t["name"], display=t["name"], kind="tag"))
+                sha = (t.get("commit") or {}).get("sha")
+                refs.append(VcsRef(id=t["name"], display=t["name"], kind="tag", commit_hash=sha))
             if len(items) < 100:
                 break
             page += 1
@@ -85,7 +87,7 @@ class GitHubApiBackend:
             for c in commits[:_MAX_COMMITS]:
                 sha = c["sha"]
                 message = (c.get("commit", {}).get("message", "") or "").split("\n")[0][:60]
-                refs.append(VcsRef(id=sha, display=f"{sha[:7]} {message}", kind="commit"))
+                refs.append(VcsRef(id=sha, display=f"{sha[:7]} {message}", kind="commit", commit_hash=sha))
         except httpx.HTTPError as e:
             logger.warning(f"[github] could not fetch commits: {e}")
 

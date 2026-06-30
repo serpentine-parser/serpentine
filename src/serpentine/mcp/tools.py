@@ -71,8 +71,8 @@ def register_tools(
 
             refs = []
             for r in vcs.list_refs():
-                try:
-                    commit_hash = vcs._backend.resolve_to_commit_hash(r.id)
+                commit_hash = r.commit_hash
+                if commit_hash is not None:
                     refs.append(
                         {
                             "ref": r.id,
@@ -83,7 +83,7 @@ def register_tools(
                             "ingested_at": ingested_by_hash.get(commit_hash),
                         }
                     )
-                except Exception:
+                else:
                     refs.append(
                         {
                             "ref": r.id,
