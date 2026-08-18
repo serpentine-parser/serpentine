@@ -12,7 +12,6 @@ Commands are organized by concern:
 
 import fnmatch
 import json
-import os
 import threading
 import time
 import webbrowser
@@ -24,9 +23,15 @@ import click
 import uvicorn
 
 from serpentine import __version__
-from serpentine.cache import VcsRefCacheManager
 from serpentine.adapters import DiskSourceProvider
-from serpentine.domain import apply_filters, filter_by_origin, get_catalog, get_stats, inject_source, inject_source_on_demand
+from serpentine.cache import VcsRefCacheManager
+from serpentine.domain import (
+    apply_filters,
+    filter_by_origin,
+    get_catalog,
+    get_stats,
+    inject_source_on_demand,
+)
 from serpentine.server import create_app
 from serpentine.state import GraphStateManager
 from serpentine.vcs.backend import detect_backend
@@ -144,11 +149,15 @@ def serve(
     vcs_manager: VcsManager | None = None
     backend = detect_backend(project_path)
     if backend is not None:
-        vcs_manager = VcsManager(backend, VcsRefCacheManager(project_path), state_manager.config)
+        vcs_manager = VcsManager(
+            backend, VcsRefCacheManager(project_path), state_manager.config
+        )
         click.echo("🔀 VCS integration enabled")
 
     # Create the web application
-    app = create_app(state_manager, static_dir=_get_static_dir(), vcs_manager=vcs_manager)
+    app = create_app(
+        state_manager, static_dir=_get_static_dir(), vcs_manager=vcs_manager
+    )
 
     # Set up file watcher if enabled
     watcher: FileWatcher | None = None
@@ -315,10 +324,14 @@ def analyze(
                 "Install git support with: pip install serpentine[git]"
             )
         try:
-            vcs_manager = VcsManager(backend, VcsRefCacheManager(project_path), state_manager.config)
+            vcs_manager = VcsManager(
+                backend, VcsRefCacheManager(project_path), state_manager.config
+            )
             from_graph_json = vcs_manager.get_graph_at(compare_ref)
         except Exception as e:
-            raise click.ClickException(f"Could not resolve ref '{compare_ref}': {e}") from e
+            raise click.ClickException(
+                f"Could not resolve ref '{compare_ref}': {e}"
+            ) from e
         state_manager.set_vcs_comparison(from_graph_json, to_graph_json=None)
 
     graph_data = apply_filters(
@@ -483,10 +496,14 @@ def catalog(
                 "Install git support with: pip install serpentine[git]"
             )
         try:
-            vcs_manager = VcsManager(backend, VcsRefCacheManager(project_path), state_manager.config)
+            vcs_manager = VcsManager(
+                backend, VcsRefCacheManager(project_path), state_manager.config
+            )
             from_graph_json = vcs_manager.get_graph_at(compare_ref)
         except Exception as e:
-            raise click.ClickException(f"Could not resolve ref '{compare_ref}': {e}") from e
+            raise click.ClickException(
+                f"Could not resolve ref '{compare_ref}': {e}"
+            ) from e
         state_manager.set_vcs_comparison(from_graph_json, to_graph_json=None)
 
     graph_data = state_manager.get_graph_data()
@@ -522,7 +539,8 @@ def catalog(
 
     if filters:
         flat_nodes = [
-            n for n in flat_nodes
+            n
+            for n in flat_nodes
             if any(
                 fnmatch.fnmatch(n.get("id", ""), pat)
                 or fnmatch.fnmatch(n.get("name", ""), pat)
@@ -937,7 +955,6 @@ def _flatten_nodes(
         _flatten_nodes(node.get("children", []), result, node.get("id"))
 
 
-
 def _strip_cfg(nodes: list[dict[str, Any]]) -> None:
     """Recursively strip the cfg field from all nodes in-place."""
     for node in nodes:
@@ -993,7 +1010,10 @@ def mcp_serve(host: str, port: int) -> None:
     except Exception as e:
         raise click.ClickException(str(e))
 
-    click.echo(f"Loaded {len(vcs_managers)} repo(s): {', '.join(vcs_managers) or '(none)'}", err=True)
+    click.echo(
+        f"Loaded {len(vcs_managers)} repo(s): {', '.join(vcs_managers) or '(none)'}",
+        err=True,
+    )
 
     app = create_mcp_app(store, vcs_managers, auth=auth)
     click.echo(f"Starting MCP server at http://{host}:{port}", err=True)
@@ -1003,8 +1023,15 @@ def mcp_serve(host: str, port: int) -> None:
 @mcp.command("ingest")
 @click.argument("repo_id")
 @click.argument("ref", default="")
-@click.option("--all-refs", is_flag=True, default=False, help="Ingest all refs for this repo")
-@click.option("--ignore-config", is_flag=True, default=False, help="Use default Config even without .serpentine.toml")
+@click.option(
+    "--all-refs", is_flag=True, default=False, help="Ingest all refs for this repo"
+)
+@click.option(
+    "--ignore-config",
+    is_flag=True,
+    default=False,
+    help="Use default Config even without .serpentine.toml",
+)
 def mcp_ingest(repo_id: str, ref: str, all_refs: bool, ignore_config: bool) -> None:
     """Ingest a repo ref into the graph store."""
     try:
@@ -1031,7 +1058,9 @@ def mcp_ingest(repo_id: str, ref: str, all_refs: bool, ignore_config: bool) -> N
 
     for r in refs_to_ingest:
         try:
-            commit_hash = _ingest_ref(vcs, store, repo_id, r, ignore_config=ignore_config)
+            commit_hash = _ingest_ref(
+                vcs, store, repo_id, r, ignore_config=ignore_config
+            )
             click.echo(f"Ingested {repo_id}/{r} → {commit_hash[:7]}")
         except Exception as e:
             click.echo(f"Error ingesting {repo_id}/{r}: {e}", err=True)

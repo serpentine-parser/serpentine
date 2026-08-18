@@ -51,8 +51,7 @@ def app_with_data(store, vcs, git_repo):
 
 def test_list_repos(app_no_data):
     result = _call(app_no_data, "list_repos", {})
-    repos = json.loads(result.data)
-    repo_ids = [r["repo_id"] for r in repos]
+    repo_ids = json.loads(result.data)
     assert "myrepo" in repo_ids
 
 

@@ -24,6 +24,7 @@ logger = logging.getLogger(__name__)
 # Domain exceptions
 # ---------------------------------------------------------------------------
 
+
 class NotIngestedError(Exception):
     def __init__(self, repo_id: str, ref: str) -> None:
         self.repo_id = repo_id
@@ -47,8 +48,10 @@ class UnknownRepoError(Exception):
 # SourceProvider protocol
 # ---------------------------------------------------------------------------
 
+
 class SourceProvider(Protocol):
     """Abstracts file content retrieval for source injection."""
+
     def get_file(self, path: str) -> str | None: ...
 
 
@@ -56,12 +59,14 @@ class SourceProvider(Protocol):
 # Pure graph operations
 # ---------------------------------------------------------------------------
 
+
 def filter_by_origin(
     graph: dict[str, Any],
     include_standard: bool,
     include_third_party: bool,
 ) -> dict[str, Any]:
     """Filter graph nodes by origin. Excluded nodes and their children are dropped."""
+
     def _keep(node: dict[str, Any]) -> bool:
         origin = node.get("origin") or "local"
         if origin == "standard" and not include_standard:
@@ -90,7 +95,8 @@ def filter_by_origin(
 
     _collect(filtered_nodes)
     filtered_edges = [
-        e for e in graph.get("edges", [])
+        e
+        for e in graph.get("edges", [])
         if (e.get("source") or e.get("caller")) in surviving
         and (e.get("target") or e.get("callee")) in surviving
     ]
@@ -133,6 +139,7 @@ def inject_source(graph_data: dict[str, Any], fm: Any) -> None:
     Pass state_manager._analyzer (serve) or a pre-built FM (VCS snapshot).
     For lazy per-file fetching over a VCS backend use inject_source_on_demand.
     """
+
     def _walk(nodes: list[dict[str, Any]]) -> None:
         for node in nodes:
             try:
@@ -146,7 +153,9 @@ def inject_source(graph_data: dict[str, Any], fm: Any) -> None:
     _walk(graph_data.get("nodes", []))
 
 
-def inject_source_on_demand(graph_data: dict[str, Any], provider: SourceProvider) -> None:
+def inject_source_on_demand(
+    graph_data: dict[str, Any], provider: SourceProvider
+) -> None:
     """Inject code_block by fetching one file at a time via provider.
 
     Builds a small FileManager per unique file_path, cached across nodes.
@@ -262,6 +271,7 @@ def get_stats(graph_data: dict[str, Any]) -> dict[str, Any]:
 # ---------------------------------------------------------------------------
 # MCP-specific: store-backed graph retrieval and ingestion
 # ---------------------------------------------------------------------------
+
 
 def _validate_ref(vcs: VcsManager, repo_id: str, ref: str) -> None:
     """Raise UnknownRepoError if ref is not in the allowed ref list or a known commit hash."""

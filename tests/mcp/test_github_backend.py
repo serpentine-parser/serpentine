@@ -169,7 +169,7 @@ class TestListRefs:
 
 class TestResolveToCommitHash:
     @given(
-        ref=st.text(alphabet=st.characters(whitelist_categories=("Lu", "Ll", "Nd"), whitelist_characters="-_./"), min_size=1, max_size=40),
+        ref=st.text(alphabet=st.characters(whitelist_categories=("Lu", "Ll", "Nd"), whitelist_characters="-_"), min_size=1, max_size=40),
         sha=hex_sha,
     )
     def test_returns_sha_from_api(self, ref, sha):

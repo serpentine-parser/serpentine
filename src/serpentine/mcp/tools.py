@@ -58,44 +58,52 @@ def register_tools(
 ) -> None:
     @mcp.tool()
     def list_repos() -> str:
-        """List all repos available on this server with ingestion status.
+        """List all repo IDs available on this server.
 
-        Returns each repo ID, its available refs, and which refs are already
-        ingested (ready to query immediately without waiting for ingestion).
-        Call this first to understand what's available.
+        Call this first to see what's available, then call get_repo with a
+        specific repo_id to see its refs and ingestion status.
         """
-        result = []
-        for repo_id, vcs in sorted(vcs_managers.items()):
-            ingested = store.list_ingested(repo_id)
-            ingested_by_hash = {r["commit_hash"]: r["ingested_at"] for r in ingested}
+        return json.dumps(sorted(vcs_managers.keys()))
 
-            refs = []
-            for r in vcs.list_refs():
-                commit_hash = r.commit_hash
-                if commit_hash is not None:
-                    refs.append(
-                        {
-                            "ref": r.id,
-                            "display": r.display,
-                            "kind": r.kind,
-                            "commit_hash": commit_hash[:7],
-                            "ingested": commit_hash in ingested_by_hash,
-                            "ingested_at": ingested_by_hash.get(commit_hash),
-                        }
-                    )
-                else:
-                    refs.append(
-                        {
-                            "ref": r.id,
-                            "display": r.display,
-                            "kind": r.kind,
-                            "ingested": False,
-                        }
-                    )
+    @mcp.tool()
+    def get_repo(repo_id: str) -> str:
+        """Get available refs and ingestion status for a single repo.
 
-            result.append({"repo_id": repo_id, "refs": refs})
+        Returns each ref's ID, display name, kind, and whether it's already
+        ingested (ready to query immediately without waiting for ingestion).
+        """
+        if repo_id not in vcs_managers:
+            return _recovery_message(UnknownRepoError(repo_id))
 
-        return json.dumps(result, indent=2)
+        vcs = vcs_managers[repo_id]
+        ingested = store.list_ingested(repo_id)
+        ingested_by_hash = {r["commit_hash"]: r["ingested_at"] for r in ingested}
+
+        refs = []
+        for r in vcs.list_refs():
+            commit_hash = r.commit_hash
+            if commit_hash is not None:
+                refs.append(
+                    {
+                        "ref": r.id,
+                        "display": r.display,
+                        "kind": r.kind,
+                        "commit_hash": commit_hash[:7],
+                        "ingested": commit_hash in ingested_by_hash,
+                        "ingested_at": ingested_by_hash.get(commit_hash),
+                    }
+                )
+            else:
+                refs.append(
+                    {
+                        "ref": r.id,
+                        "display": r.display,
+                        "kind": r.kind,
+                        "ingested": False,
+                    }
+                )
+
+        return json.dumps({"repo_id": repo_id, "refs": refs}, indent=2)
 
     @mcp.tool()
     def list_refs(repo_id: str) -> str:
