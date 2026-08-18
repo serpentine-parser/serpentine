@@ -1032,8 +1032,24 @@ def mcp_serve(host: str, port: int) -> None:
     default=False,
     help="Use default Config even without .serpentine.toml",
 )
-def mcp_ingest(repo_id: str, ref: str, all_refs: bool, ignore_config: bool) -> None:
+@click.option(
+    "--since", default=None, help="Only ingest refs at or after this ISO 8601 date (with --all-refs)"
+)
+@click.option(
+    "--until", default=None, help="Only ingest refs at or before this ISO 8601 date (with --all-refs)"
+)
+def mcp_ingest(
+    repo_id: str,
+    ref: str,
+    all_refs: bool,
+    ignore_config: bool,
+    since: str | None,
+    until: str | None,
+) -> None:
     """Ingest a repo ref into the graph store."""
+    if (since is not None or until is not None) and not all_refs:
+        raise click.ClickException("--since/--until only apply with --all-refs")
+
     try:
         from serpentine.services import ingest_ref as _ingest_ref
         from serpentine.storage.factory import build_store
@@ -1050,7 +1066,10 @@ def mcp_ingest(repo_id: str, ref: str, all_refs: bool, ignore_config: bool) -> N
         raise click.ClickException(str(e))
 
     if all_refs:
-        refs_to_ingest = [r.id for r in vcs.list_refs()]
+        try:
+            refs_to_ingest = [r.id for r in vcs.list_refs(since=since, until=until)]
+        except ValueError as e:
+            raise click.ClickException(str(e))
     elif ref:
         refs_to_ingest = [ref]
     else:

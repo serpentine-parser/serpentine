@@ -2,6 +2,7 @@
 
 import logging
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Protocol, runtime_checkable
 
@@ -10,12 +11,17 @@ logger = logging.getLogger(__name__)
 MAX_COMMITS = 100
 
 
+def _commit_time_iso(commit_time: int) -> str:
+    return datetime.fromtimestamp(commit_time, tz=timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
 @dataclass
 class VcsRef:
     id: str
     display: str
     kind: str  # "branch" | "tag" | "commit"
     commit_hash: str | None = None  # pre-resolved SHA when available, avoids extra API call
+    timestamp: str | None = None  # ISO 8601 UTC committer date, None when unavailable (e.g. GitHub branch/tag)
 
 
 @runtime_checkable
@@ -44,7 +50,15 @@ class GitBackend:
         for branch_name in self._repo.branches.local:
             branch = self._repo.branches.local[branch_name]
             sha = str(branch.target) if branch.target else None
-            refs.append(VcsRef(id=branch_name, display=branch_name, kind="branch", commit_hash=sha))
+            timestamp = None
+            try:
+                commit = branch.peel(pygit2.Commit)
+                timestamp = _commit_time_iso(commit.commit_time)
+            except Exception:
+                pass
+            refs.append(VcsRef(
+                id=branch_name, display=branch_name, kind="branch", commit_hash=sha, timestamp=timestamp
+            ))
 
         # Tags
         for ref_name in self._repo.references:
@@ -53,9 +67,11 @@ class GitBackend:
                 try:
                     obj = self._repo.references[ref_name].peel(pygit2.Commit)
                     sha = str(obj.id)
+                    timestamp = _commit_time_iso(obj.commit_time)
                 except Exception:
                     sha = None
-                refs.append(VcsRef(id=tag_name, display=tag_name, kind="tag", commit_hash=sha))
+                    timestamp = None
+                refs.append(VcsRef(id=tag_name, display=tag_name, kind="tag", commit_hash=sha, timestamp=timestamp))
 
         # Recent commits (hard cap at MAX_COMMITS)
         try:
@@ -72,6 +88,7 @@ class GitBackend:
                     display=f"{short_id} {message}",
                     kind="commit",
                     commit_hash=sha,
+                    timestamp=_commit_time_iso(commit.commit_time),
                 ))
         except pygit2.GitError:
             pass

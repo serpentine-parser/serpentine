@@ -66,11 +66,15 @@ def register_tools(
         return json.dumps(sorted(vcs_managers.keys()))
 
     @mcp.tool()
-    def get_repo(repo_id: str) -> str:
+    def get_repo(repo_id: str, since: str | None = None, until: str | None = None) -> str:
         """Get available refs and ingestion status for a single repo.
 
-        Returns each ref's ID, display name, kind, and whether it's already
-        ingested (ready to query immediately without waiting for ingestion).
+        Returns each ref's ID, display name, kind, timestamp, and whether it's
+        already ingested (ready to query immediately without waiting for ingestion).
+
+        since/until optionally filter refs by commit timestamp, as ISO 8601 dates
+        (e.g. "2026-08-01"). Refs with no timestamp (e.g. GitHub branch/tag refs,
+        which aren't dated without an extra API call per ref) are never filtered out.
         """
         if repo_id not in vcs_managers:
             return _recovery_message(UnknownRepoError(repo_id))
@@ -79,8 +83,13 @@ def register_tools(
         ingested = store.list_ingested(repo_id)
         ingested_by_hash = {r["commit_hash"]: r["ingested_at"] for r in ingested}
 
+        try:
+            fetched_refs = vcs.list_refs(since=since, until=until)
+        except ValueError as e:
+            return str(e)
+
         refs = []
-        for r in vcs.list_refs():
+        for r in fetched_refs:
             commit_hash = r.commit_hash
             if commit_hash is not None:
                 refs.append(
@@ -89,6 +98,7 @@ def register_tools(
                         "display": r.display,
                         "kind": r.kind,
                         "commit_hash": commit_hash[:7],
+                        "timestamp": r.timestamp,
                         "ingested": commit_hash in ingested_by_hash,
                         "ingested_at": ingested_by_hash.get(commit_hash),
                     }
@@ -99,6 +109,7 @@ def register_tools(
                         "ref": r.id,
                         "display": r.display,
                         "kind": r.kind,
+                        "timestamp": r.timestamp,
                         "ingested": False,
                     }
                 )
@@ -106,16 +117,24 @@ def register_tools(
         return json.dumps({"repo_id": repo_id, "refs": refs}, indent=2)
 
     @mcp.tool()
-    def list_refs(repo_id: str) -> str:
+    def list_refs(repo_id: str, since: str | None = None, until: str | None = None) -> str:
         """List branches, tags, and recent commits for a repo.
 
         Use this to discover valid ref values before calling analyze or ingest_ref.
+
+        since/until optionally filter refs by commit timestamp, as ISO 8601 dates
+        (e.g. "2026-08-01"). Refs with no timestamp (e.g. GitHub branch/tag refs,
+        which aren't dated without an extra API call per ref) are never filtered out.
         """
         if repo_id not in vcs_managers:
             return _recovery_message(UnknownRepoError(repo_id))
-        refs = vcs_managers[repo_id].list_refs()
+        try:
+            refs = vcs_managers[repo_id].list_refs(since=since, until=until)
+        except ValueError as e:
+            return str(e)
         return json.dumps(
-            [{"id": r.id, "display": r.display, "kind": r.kind} for r in refs], indent=2
+            [{"id": r.id, "display": r.display, "kind": r.kind, "timestamp": r.timestamp} for r in refs],
+            indent=2,
         )
 
     @mcp.tool()

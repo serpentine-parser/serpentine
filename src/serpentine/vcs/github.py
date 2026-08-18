@@ -86,8 +86,14 @@ class GitHubApiBackend:
             )
             for c in commits[:_MAX_COMMITS]:
                 sha = c["sha"]
-                message = (c.get("commit", {}).get("message", "") or "").split("\n")[0][:60]
-                refs.append(VcsRef(id=sha, display=f"{sha[:7]} {message}", kind="commit", commit_hash=sha))
+                commit_info = c.get("commit", {})
+                message = (commit_info.get("message", "") or "").split("\n")[0][:60]
+                committer_date = (commit_info.get("committer") or {}).get("date")
+                author_date = (commit_info.get("author") or {}).get("date")
+                timestamp = committer_date or author_date
+                refs.append(VcsRef(
+                    id=sha, display=f"{sha[:7]} {message}", kind="commit", commit_hash=sha, timestamp=timestamp
+                ))
         except httpx.HTTPError as e:
             logger.warning(f"[github] could not fetch commits: {e}")
 
