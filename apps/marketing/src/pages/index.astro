@@ -75,7 +75,7 @@ const GITHUB = 'https://github.com/serpentine-parser/serpentine';
 
         <!-- Select (small screens) -->
         <select class="agent-select sm:hidden w-full bg-surface-2 border border-border-2 rounded-t-lg border-b-0 text-text font-mono text-[0.82rem] px-3 py-2.5 cursor-pointer appearance-none"
-                aria-label="Select harness" style="background-image:url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath d='M2 4l4 4 4-4' stroke='%234a574c' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round' fill='none'/%3E%3C/svg%3E\");background-repeat:no-repeat;background-position:right 0.75rem center;padding-right:2rem">
+                aria-label="Select harness">
           <option value="claude">Claude Code</option>
           <option value="cursor">Cursor</option>
           <option value="copilot">GitHub Copilot</option>
@@ -377,6 +377,12 @@ const GITHUB = 'https://github.com/serpentine-parser/serpentine';
   cursor: pointer;
   transition: background 0.15s, color 0.15s;
   white-space: nowrap;
+}
+.agent-select {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath d='M2 4l4 4 4-4' stroke='%234a574c' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round' fill='none'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.75rem center;
+  padding-right: 2rem;
 }
 .agent-tab:last-child { border-right: none; }
 .agent-tab:hover { background: var(--surface); color: var(--text-muted); }
