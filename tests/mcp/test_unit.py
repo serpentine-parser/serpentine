@@ -1,7 +1,5 @@
 """Unit tests for pure-function domain logic (no I/O)."""
 
-import pytest
-
 from serpentine.cache import NullCache
 from serpentine.services import (
     MissingConfigError,
@@ -11,10 +9,10 @@ from serpentine.services import (
     get_stats,
 )
 
-
 # ---------------------------------------------------------------------------
 # NullCache
 # ---------------------------------------------------------------------------
+
 
 def test_null_cache_get_always_none():
     c = NullCache()
@@ -29,6 +27,7 @@ def test_null_cache_put_is_noop():
 # ---------------------------------------------------------------------------
 # Domain exceptions
 # ---------------------------------------------------------------------------
+
 
 def test_not_ingested_error_message():
     exc = NotIngestedError("org/repo", "main")

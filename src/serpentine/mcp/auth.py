@@ -1,11 +1,16 @@
 import logging
 import os
+from pathlib import Path
 
 import jwt
 from fastmcp.server.auth import TokenVerifier
 from mcp.server.auth.provider import AccessToken
 
+from serpentine.mcp.config import get_hook, load_user_config
+
 logger = logging.getLogger(__name__)
+
+DEFAULT_CONFIG_FILENAME = "serpentine_mcp_config.py"
 
 
 class ConfigError(Exception):
@@ -62,6 +67,17 @@ class JWTVerifier(TokenVerifier):
         subject = claims.get("sub", claims.get("client_id", ""))
         expires_at = claims.get("exp")
 
+        check_auth = get_hook("check_auth")
+        if check_auth is not None:
+            try:
+                authorized = check_auth(claims)
+            except Exception as exc:
+                logger.warning("check_auth hook raised for subject=%s: %s", subject, exc)
+                return None
+            if not authorized:
+                logger.warning("check_auth hook rejected subject=%s", subject)
+                return None
+
         return AccessToken(
             token=token,
             client_id=str(subject),
@@ -72,11 +88,34 @@ class JWTVerifier(TokenVerifier):
         )
 
 
+def _load_mcp_config() -> None:
+    """
+    Load the optional MCP config file (default ./serpentine_mcp_config.py,
+    override via SERPENTINE_MCP_CONFIG_FILE) so its @config(...) hooks
+    register. A missing default file is not an error; a missing or broken
+    explicitly-configured file is.
+    """
+    configured_path = os.environ.get("SERPENTINE_MCP_CONFIG_FILE")
+    path = Path(configured_path) if configured_path else Path(DEFAULT_CONFIG_FILENAME)
+
+    if not path.exists():
+        if configured_path:
+            raise ConfigError(f"SERPENTINE_MCP_CONFIG_FILE points to a missing file: {path}")
+        return
+
+    try:
+        load_user_config(path)
+    except Exception as exc:
+        raise ConfigError(f"Failed to load MCP config file {path}: {exc}") from exc
+
+
 def build_jwt_verifier() -> JWTVerifier | None:
     """
     Build a JWTVerifier from environment variables, or return None if auth is
     explicitly disabled. Raises ConfigError on invalid configuration.
     """
+    _load_mcp_config()
+
     allow_unauth = os.environ.get("SERPENTINE_MCP_ALLOW_UNAUTHENTICATED", "").lower() == "true"
 
     jwks_uri = os.environ.get("SERPENTINE_JWKS_URI")

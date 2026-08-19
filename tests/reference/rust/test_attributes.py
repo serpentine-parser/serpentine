@@ -24,10 +24,12 @@ def test_imported_attribute_references():
         #[instrument]
         fn f() {}
     """)
-    edges = analyze_sources([
-        ("/fixture/macros.rs", macros),
-        ("/fixture/main.rs", main),
-    ])
+    edges = analyze_sources(
+        [
+            ("/fixture/macros.rs", macros),
+            ("/fixture/main.rs", main),
+        ]
+    )
     assert_has_edge(edges, "main.f", "macros.instrument", "references")
 
 

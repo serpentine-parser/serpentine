@@ -1,9 +1,9 @@
 """Scope nodes — top-level blocks appear as nodes in the graph."""
-from textwrap import dedent
-import json
-from serpentine import _analyzer
 
-from ..helpers import analyze_sources
+import json
+from textwrap import dedent
+
+from serpentine import _analyzer
 
 
 def _nodes_flat(sources):

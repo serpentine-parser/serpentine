@@ -9,15 +9,16 @@ from fastmcp.client import Client, FastMCPTransport
 from serpentine.mcp.server import create_mcp_app
 from serpentine.services import ingest_ref
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _call(mcp_app, tool: str, args: dict):
     async def _run():
         async with Client(FastMCPTransport(mcp_app)) as c:
             return await c.call_tool(tool, args)
+
     return asyncio.run(_run())
 
 
@@ -25,12 +26,14 @@ def _resource(mcp_app, uri: str):
     async def _run():
         async with Client(FastMCPTransport(mcp_app)) as c:
             return await c.read_resource(uri)
+
     return asyncio.run(_run())
 
 
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
+
 
 @pytest.fixture
 def app_no_data(store, vcs, git_repo):
@@ -49,6 +52,7 @@ def app_with_data(store, vcs, git_repo):
 # list_repos
 # ---------------------------------------------------------------------------
 
+
 def test_list_repos(app_no_data):
     result = _call(app_no_data, "list_repos", {})
     repo_ids = json.loads(result.data)
@@ -58,6 +62,7 @@ def test_list_repos(app_no_data):
 # ---------------------------------------------------------------------------
 # list_refs
 # ---------------------------------------------------------------------------
+
 
 def test_list_refs_known_repo(app_no_data):
     result = _call(app_no_data, "list_refs", {"repo_id": "myrepo"})
@@ -75,6 +80,7 @@ def test_list_refs_unknown_repo(app_no_data):
 # ---------------------------------------------------------------------------
 # analyze
 # ---------------------------------------------------------------------------
+
 
 def test_analyze_auto_ingests_when_not_yet_ingested(app_no_data):
     # Auto-ingest: calling analyze on an un-ingested ref should succeed, not error
@@ -99,12 +105,17 @@ def test_analyze_unknown_repo(app_no_data):
 # ingest_ref tool
 # ---------------------------------------------------------------------------
 
+
 def test_ingest_ref_tool_stores_graph(app_no_data, store, vcs):
-    result = _call(app_no_data, "ingest_ref_tool", {
-        "repo_id": "myrepo",
-        "ref": "main",
-        "ignore_config": True,
-    })
+    result = _call(
+        app_no_data,
+        "ingest_ref_tool",
+        {
+            "repo_id": "myrepo",
+            "ref": "main",
+            "ignore_config": True,
+        },
+    )
     assert "Ingested" in result.data
 
     # Subsequent analyze should now succeed
@@ -115,16 +126,21 @@ def test_ingest_ref_tool_stores_graph(app_no_data, store, vcs):
 
 
 def test_ingest_ref_tool_unknown_repo(app_no_data):
-    result = _call(app_no_data, "ingest_ref_tool", {
-        "repo_id": "ghost",
-        "ref": "main",
-    })
+    result = _call(
+        app_no_data,
+        "ingest_ref_tool",
+        {
+            "repo_id": "ghost",
+            "ref": "main",
+        },
+    )
     assert "not in the allowed repo list" in result.data
 
 
 # ---------------------------------------------------------------------------
 # Resources: catalog and stats
 # ---------------------------------------------------------------------------
+
 
 def test_catalog_resource(app_with_data):
     contents = _resource(app_with_data, "serpentine://myrepo/main/catalog")

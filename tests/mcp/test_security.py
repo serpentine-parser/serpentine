@@ -17,24 +17,31 @@ GOOD_HASH = "a" * 40
 # LocalGraphStore — commit hash injection
 # ---------------------------------------------------------------------------
 
-@pytest.mark.parametrize("bad_hash", [
-    "../etc/passwd",
-    "abc/../secrets",
-    "/etc/shadow",
-    "a" * 39 + "/",
-    "",
-    "not-hex-at-all-but-is-40-chars-long-xx",
-])
+
+@pytest.mark.parametrize(
+    "bad_hash",
+    [
+        "../etc/passwd",
+        "abc/../secrets",
+        "/etc/shadow",
+        "a" * 39 + "/",
+        "",
+        "not-hex-at-all-but-is-40-chars-long-xx",
+    ],
+)
 def test_store_get_rejects_path_traversal_in_hash(tmp_path, bad_hash):
     store = LocalGraphStore(tmp_path)
     with pytest.raises(ValueError, match="Invalid commit hash"):
         store.get("org/repo", bad_hash)
 
 
-@pytest.mark.parametrize("bad_hash", [
-    "../etc/passwd",
-    "abc/../secrets",
-])
+@pytest.mark.parametrize(
+    "bad_hash",
+    [
+        "../etc/passwd",
+        "abc/../secrets",
+    ],
+)
 def test_store_put_rejects_path_traversal_in_hash(tmp_path, bad_hash):
     store = LocalGraphStore(tmp_path)
     with pytest.raises(ValueError, match="Invalid commit hash"):
@@ -49,12 +56,16 @@ def test_store_put_rejects_path_traversal_in_hash(tmp_path, bad_hash):
 # boundary and raise UnknownRepoError, not a filesystem error.
 # ---------------------------------------------------------------------------
 
-@pytest.mark.parametrize("bad_repo_id", [
-    "../../etc/passwd",
-    "org/repo/../other",
-    "../secret",
-    "",
-])
+
+@pytest.mark.parametrize(
+    "bad_repo_id",
+    [
+        "../../etc/passwd",
+        "org/repo/../other",
+        "../secret",
+        "",
+    ],
+)
 def test_unknown_repo_id_raises_unknown_repo_error(bad_repo_id):
     # Simulate the tool-layer check: vcs_managers does not contain the adversarial id.
     vcs_managers: dict = {}
@@ -74,6 +85,7 @@ def test_unknown_repo_id_has_correct_type():
 # ---------------------------------------------------------------------------
 # Ref allowlist validation
 # ---------------------------------------------------------------------------
+
 
 def test_validate_ref_rejects_git_revision_expressions(git_repo):
     """Expressions like HEAD~50 and refs/stash must not reach the backend."""
@@ -114,6 +126,7 @@ def test_validate_ref_allows_full_commit_hash(git_repo):
 # (regression guard — isfile() must exclude SYMTYPE members)
 # ---------------------------------------------------------------------------
 
+
 def _make_tarball_with_symlink(target: str) -> bytes:
     """Build an in-memory tar.gz containing only a symlink member."""
     buf = io.BytesIO()
@@ -138,14 +151,16 @@ def _make_tarball_with_files(files: dict) -> bytes:
 
 def test_get_archive_at_skips_symlink_members():
     """Symlink tar members must not appear in get_archive_at results."""
-    import httpx
-    from tests.mcp.test_github_backend import FakeGitHubTransport
+
     from serpentine.vcs.github import GitHubApiBackend
+    from tests.mcp.test_github_backend import FakeGitHubTransport
 
     tarball = _make_tarball_with_symlink("/etc/passwd")
-    transport = FakeGitHubTransport({
-        "/repos/org/repo/tarball/main": (200, tarball, "bytes"),
-    })
+    transport = FakeGitHubTransport(
+        {
+            "/repos/org/repo/tarball/main": (200, tarball, "bytes"),
+        }
+    )
     backend = GitHubApiBackend("org/repo", "ghp_fake", transport=transport)
     result = backend.get_archive_at("main", {".py"})
     assert result == {}, "Symlink members must be excluded from archive results"
@@ -153,9 +168,9 @@ def test_get_archive_at_skips_symlink_members():
 
 def test_get_archive_at_symlink_does_not_leak_filesystem():
     """Even if a symlink member slips through, in-memory extraction cannot read real FS paths."""
-    import httpx
-    from tests.mcp.test_github_backend import FakeGitHubTransport
+
     from serpentine.vcs.github import GitHubApiBackend
+    from tests.mcp.test_github_backend import FakeGitHubTransport
 
     # Tarball with both a symlink and a regular file with the same .py extension
     buf = io.BytesIO()
@@ -172,9 +187,11 @@ def test_get_archive_at_symlink_does_not_leak_filesystem():
         tar.addfile(reg, io.BytesIO(content))
     tarball = buf.getvalue()
 
-    transport = FakeGitHubTransport({
-        "/repos/org/repo/tarball/main": (200, tarball, "bytes"),
-    })
+    transport = FakeGitHubTransport(
+        {
+            "/repos/org/repo/tarball/main": (200, tarball, "bytes"),
+        }
+    )
     backend = GitHubApiBackend("org/repo", "ghp_fake", transport=transport)
     result = backend.get_archive_at("main", {".py"})
 
@@ -188,10 +205,11 @@ def test_get_archive_at_symlink_does_not_leak_filesystem():
 # (regression guard — paths from tar must never reach filesystem operations)
 # ---------------------------------------------------------------------------
 
+
 def test_get_archive_at_traversal_paths_not_written_to_disk(tmp_path):
     """Member names with ../ sequences must not cause any filesystem writes."""
-    from tests.mcp.test_github_backend import FakeGitHubTransport
     from serpentine.vcs.github import GitHubApiBackend
+    from tests.mcp.test_github_backend import FakeGitHubTransport
 
     content = b"def evil(): pass"
     buf = io.BytesIO()
@@ -201,27 +219,35 @@ def test_get_archive_at_traversal_paths_not_written_to_disk(tmp_path):
         tar.addfile(info, io.BytesIO(content))
     tarball = buf.getvalue()
 
-    transport = FakeGitHubTransport({
-        "/repos/org/repo/tarball/main": (200, tarball, "bytes"),
-    })
+    transport = FakeGitHubTransport(
+        {
+            "/repos/org/repo/tarball/main": (200, tarball, "bytes"),
+        }
+    )
     backend = GitHubApiBackend("org/repo", "ghp_fake", transport=transport)
     result = backend.get_archive_at("main", {".py"})
 
     # The key may appear with the traversal path — that is acceptable as long as
     # no file was written outside the intended directory.
     evil_file = tmp_path.parent.parent / "tmp" / "evil.py"
-    assert not evil_file.exists(), "Traversal path in tar member must not cause a filesystem write"
+    assert not evil_file.exists(), (
+        "Traversal path in tar member must not cause a filesystem write"
+    )
 
 
 # ---------------------------------------------------------------------------
 # Ref validation: traversal-style refs are rejected before reaching the backend
 # ---------------------------------------------------------------------------
 
-@pytest.mark.parametrize("bad_ref", [
-    "main/../../other-org/other-repo",
-    "main/../secret",
-    "refs/heads/main/../../admin",
-])
+
+@pytest.mark.parametrize(
+    "bad_ref",
+    [
+        "main/../../other-org/other-repo",
+        "main/../secret",
+        "refs/heads/main/../../admin",
+    ],
+)
 def test_validate_ref_rejects_path_traversal_refs(git_repo, bad_ref):
     """Refs containing path traversal sequences must be rejected by _validate_ref."""
     from serpentine.vcs.backend import GitBackend

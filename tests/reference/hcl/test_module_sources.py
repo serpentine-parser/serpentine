@@ -1,4 +1,5 @@
 """Module source dependency edges — `source = "./modules/vpc"` style."""
+
 from textwrap import dedent
 
 from ..helpers import analyze_sources, assert_has_edge, assert_no_edge

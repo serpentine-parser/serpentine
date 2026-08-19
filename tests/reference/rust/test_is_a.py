@@ -24,8 +24,10 @@ def test_imported_trait_impl():
         struct S {}
         impl MyTrait for S {}
     """)
-    edges = analyze_sources([
-        ("/fixture/pkg/traits.rs", traits),
-        ("/fixture/main.rs", main),
-    ])
+    edges = analyze_sources(
+        [
+            ("/fixture/pkg/traits.rs", traits),
+            ("/fixture/main.rs", main),
+        ]
+    )
     assert_has_edge(edges, "main.S", "pkg.traits.MyTrait", "is-a")

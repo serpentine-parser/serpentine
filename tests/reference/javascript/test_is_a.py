@@ -22,10 +22,12 @@ def test_imported_base_class():
         import { Base } from './models';
         class B extends Base {}
     """)
-    edges = analyze_sources([
-        ("/models.ts", models),
-        ("/main.ts", main),
-    ])
+    edges = analyze_sources(
+        [
+            ("/models.ts", models),
+            ("/main.ts", main),
+        ]
+    )
     assert_has_edge(edges, "main.B", "models.Base", "is-a")
 
 

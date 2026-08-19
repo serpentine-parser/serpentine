@@ -1,7 +1,5 @@
 """Tests for LocalGraphStore and build_store()."""
 
-import os
-
 import pytest
 
 from serpentine.storage.factory import ConfigError, build_store
@@ -14,6 +12,7 @@ OTHER_HASH = "b" * 40
 # ---------------------------------------------------------------------------
 # LocalGraphStore — basic round-trip
 # ---------------------------------------------------------------------------
+
 
 def test_put_and_get(tmp_path):
     store = LocalGraphStore(tmp_path)
@@ -41,27 +40,34 @@ def test_relative_root_rejected():
 # LocalGraphStore — commit hash validation
 # ---------------------------------------------------------------------------
 
-@pytest.mark.parametrize("bad_hash", [
-    "abc",
-    "../etc/passwd",
-    "a" * 39,
-    "a" * 41,
-    "g" * 40,
-    "A" * 40,
-    "abc/def",
-    "",
-])
+
+@pytest.mark.parametrize(
+    "bad_hash",
+    [
+        "abc",
+        "../etc/passwd",
+        "a" * 39,
+        "a" * 41,
+        "g" * 40,
+        "A" * 40,
+        "abc/def",
+        "",
+    ],
+)
 def test_get_rejects_bad_commit_hash(tmp_path, bad_hash):
     store = LocalGraphStore(tmp_path)
     with pytest.raises(ValueError, match="Invalid commit hash"):
         store.get("repo", bad_hash)
 
 
-@pytest.mark.parametrize("bad_hash", [
-    "../etc/passwd",
-    "a" * 39,
-    "g" * 40,
-])
+@pytest.mark.parametrize(
+    "bad_hash",
+    [
+        "../etc/passwd",
+        "a" * 39,
+        "g" * 40,
+    ],
+)
 def test_put_rejects_bad_commit_hash(tmp_path, bad_hash):
     store = LocalGraphStore(tmp_path)
     with pytest.raises(ValueError, match="Invalid commit hash"):
@@ -71,6 +77,7 @@ def test_put_rejects_bad_commit_hash(tmp_path, bad_hash):
 # ---------------------------------------------------------------------------
 # build_store()
 # ---------------------------------------------------------------------------
+
 
 def test_build_store_missing_backend(monkeypatch):
     monkeypatch.delenv("SERPENTINE_STORE_BACKEND", raising=False)

@@ -8,6 +8,7 @@ import pytest
 
 from serpentine.cache import NullCache
 from serpentine.config import Config
+from serpentine.mcp import config as mcp_config
 from serpentine.storage.local import LocalGraphStore
 from serpentine.vcs.backend import GitBackend
 from serpentine.vcs.manager import VcsManager
@@ -64,3 +65,13 @@ def store(tmp_path):
 def vcs(git_repo):
     backend = GitBackend(git_repo)
     return VcsManager(backend, NullCache(), Config.load(git_repo))
+
+
+@pytest.fixture(autouse=True)
+def reset_mcp_config_hooks():
+    """Isolate the serpentine.mcp.config._HOOKS registry between tests."""
+    saved = dict(mcp_config._HOOKS)
+    mcp_config._HOOKS.clear()
+    yield
+    mcp_config._HOOKS.clear()
+    mcp_config._HOOKS.update(saved)

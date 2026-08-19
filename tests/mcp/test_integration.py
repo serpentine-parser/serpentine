@@ -1,13 +1,15 @@
 """Integration tests: real local git repo + LocalGraphStore."""
 
-import json
-import textwrap
-
 import pytest
 
 from serpentine.cache import NullCache
 from serpentine.config import Config
-from serpentine.services import MissingConfigError, NotIngestedError, get_graph, ingest_ref
+from serpentine.services import (
+    MissingConfigError,
+    NotIngestedError,
+    get_graph,
+    ingest_ref,
+)
 from serpentine.vcs.backend import GitBackend
 from serpentine.vcs.manager import VcsManager
 
@@ -26,6 +28,7 @@ def test_full_ingest_and_retrieve(git_repo, store):
 def test_ingest_missing_config_raises(tmp_path, store):
     """ingest_ref without .serpentine.toml raises MissingConfigError."""
     import pygit2
+
     repo_path = tmp_path / "notoml"
     repo_path.mkdir()
 
@@ -48,6 +51,7 @@ def test_ingest_missing_config_raises(tmp_path, store):
 def test_ingest_ignore_config_succeeds(tmp_path, store):
     """ingest_ref with ignore_config=True succeeds even without .serpentine.toml."""
     import pygit2
+
     repo_path = tmp_path / "notoml2"
     repo_path.mkdir()
 

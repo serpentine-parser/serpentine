@@ -4,10 +4,10 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-botocore = pytest.importorskip("botocore", reason="botocore not installed")
-
 from serpentine.storage.factory import ConfigError, build_store
 from serpentine.storage.s3 import S3GraphStore
+
+botocore = pytest.importorskip("botocore", reason="botocore not installed")
 
 GOOD_HASH = "a" * 40
 
@@ -15,6 +15,7 @@ GOOD_HASH = "a" * 40
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _make_store(client_mock: MagicMock, bucket: str = "test-bucket") -> S3GraphStore:
     store = object.__new__(S3GraphStore)
@@ -33,6 +34,7 @@ def _make_client_error(code: str) -> Exception:
 # ---------------------------------------------------------------------------
 # S3GraphStore — round-trip
 # ---------------------------------------------------------------------------
+
 
 def test_put_calls_put_object():
     client = MagicMock()
@@ -84,31 +86,40 @@ def test_key_format():
 
     store = _make_store(client)
     store.get("org/repo", GOOD_HASH)
-    client.get_object.assert_called_once_with(Bucket="test-bucket", Key=f"org/repo/{GOOD_HASH}.json")
+    client.get_object.assert_called_once_with(
+        Bucket="test-bucket", Key=f"org/repo/{GOOD_HASH}.json"
+    )
 
 
 # ---------------------------------------------------------------------------
 # S3GraphStore — commit hash validation
 # ---------------------------------------------------------------------------
 
-@pytest.mark.parametrize("bad_hash", [
-    "abc",
-    "../etc/passwd",
-    "a" * 39,
-    "g" * 40,
-    "",
-])
+
+@pytest.mark.parametrize(
+    "bad_hash",
+    [
+        "abc",
+        "../etc/passwd",
+        "a" * 39,
+        "g" * 40,
+        "",
+    ],
+)
 def test_get_rejects_bad_hash(bad_hash):
     store = _make_store(MagicMock())
     with pytest.raises(ValueError, match="Invalid commit hash"):
         store.get("repo", bad_hash)
 
 
-@pytest.mark.parametrize("bad_hash", [
-    "../etc/passwd",
-    "a" * 39,
-    "g" * 40,
-])
+@pytest.mark.parametrize(
+    "bad_hash",
+    [
+        "../etc/passwd",
+        "a" * 39,
+        "g" * 40,
+    ],
+)
 def test_put_rejects_bad_hash(bad_hash):
     store = _make_store(MagicMock())
     with pytest.raises(ValueError, match="Invalid commit hash"):
@@ -118,6 +129,7 @@ def test_put_rejects_bad_hash(bad_hash):
 # ---------------------------------------------------------------------------
 # build_store() — s3 path
 # ---------------------------------------------------------------------------
+
 
 def test_build_store_s3_missing_bucket(monkeypatch):
     monkeypatch.setenv("SERPENTINE_STORE_BACKEND", "s3")
@@ -143,7 +155,14 @@ def test_build_store_s3_ok(monkeypatch):
     mock_boto3 = MagicMock()
     mock_boto3.client.return_value = mock_client
 
-    with patch.dict("sys.modules", {"boto3": mock_boto3, "botocore": MagicMock(), "botocore.exceptions": MagicMock()}):
+    with patch.dict(
+        "sys.modules",
+        {
+            "boto3": mock_boto3,
+            "botocore": MagicMock(),
+            "botocore.exceptions": MagicMock(),
+        },
+    ):
         store = build_store()
 
     assert isinstance(store, S3GraphStore)
@@ -157,7 +176,14 @@ def test_build_store_s3_with_region(monkeypatch):
 
     mock_boto3 = MagicMock()
 
-    with patch.dict("sys.modules", {"boto3": mock_boto3, "botocore": MagicMock(), "botocore.exceptions": MagicMock()}):
+    with patch.dict(
+        "sys.modules",
+        {
+            "boto3": mock_boto3,
+            "botocore": MagicMock(),
+            "botocore.exceptions": MagicMock(),
+        },
+    ):
         store = build_store()
 
     mock_boto3.client.assert_called_once_with("s3", region_name="us-west-2")

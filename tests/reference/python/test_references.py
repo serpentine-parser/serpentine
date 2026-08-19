@@ -220,8 +220,12 @@ def test_no_listcomp_node():
     """)
     edges = analyze_sources([("/fixture/mymod.py", src)])
     for e in edges:
-        assert "<listcomp>" not in e["caller"], f"Unexpected <listcomp> node as caller: {e}"
-        assert "<listcomp>" not in e["callee"], f"Unexpected <listcomp> node as callee: {e}"
+        assert "<listcomp>" not in e["caller"], (
+            f"Unexpected <listcomp> node as caller: {e}"
+        )
+        assert "<listcomp>" not in e["callee"], (
+            f"Unexpected <listcomp> node as callee: {e}"
+        )
 
 
 def test_nested_call_arg_reference():

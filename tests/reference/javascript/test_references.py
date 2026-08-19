@@ -22,10 +22,12 @@ def test_imported_name_reference():
         import { Config } from './models';
         const x = Config;
     """)
-    edges = analyze_sources([
-        ("/models.ts", models),
-        ("/main.ts", main),
-    ])
+    edges = analyze_sources(
+        [
+            ("/models.ts", models),
+            ("/main.ts", main),
+        ]
+    )
     assert_has_edge(edges, "main.x", "models.Config", "references")
 
 

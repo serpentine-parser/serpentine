@@ -22,19 +22,22 @@ def test_imported_name_reference():
         use mod_a::Config;
         let x = Config {};
     """)
-    edges = analyze_sources([
-        ("/fixture/mod_a.rs", mod_a),
-        ("/fixture/main.rs", main),
-    ])
+    edges = analyze_sources(
+        [
+            ("/fixture/mod_a.rs", mod_a),
+            ("/fixture/main.rs", main),
+        ]
+    )
     # Struct construction may produce has-a or references; either is valid.
     matching = [
-        e for e in edges
-        if e["caller"] == "main.x" and e["callee"] == "mod_a.Config"
+        e for e in edges if e["caller"] == "main.x" and e["callee"] == "mod_a.Config"
     ]
     assert matching, (
-        f"Expected an edge main.x --> mod_a.Config (has-a or references).\n"
-        f"Actual edges:\n" + "\n".join(
-            f"  {e['caller']} --{e['type']}--> {e['callee']}" for e in sorted(edges, key=lambda e: e["caller"])
+        "Expected an edge main.x --> mod_a.Config (has-a or references).\n"
+        "Actual edges:\n"
+        + "\n".join(
+            f"  {e['caller']} --{e['type']}--> {e['callee']}"
+            for e in sorted(edges, key=lambda e: e["caller"])
         )
     )
 

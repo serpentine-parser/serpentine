@@ -1,6 +1,5 @@
 """Tests for GcsGraphStore and build_store() GCS path."""
 
-import os
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -15,6 +14,7 @@ GOOD_HASH = "a" * 40
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def _make_store(bucket_mock: MagicMock) -> GcsGraphStore:
     """Build a GcsGraphStore wired to a pre-created mock bucket."""
     store = object.__new__(GcsGraphStore)
@@ -25,6 +25,7 @@ def _make_store(bucket_mock: MagicMock) -> GcsGraphStore:
 # ---------------------------------------------------------------------------
 # GcsGraphStore — round-trip
 # ---------------------------------------------------------------------------
+
 
 def test_put_calls_upload(tmp_path):
     bucket = MagicMock()
@@ -69,24 +70,31 @@ def test_key_format():
 # GcsGraphStore — commit hash validation
 # ---------------------------------------------------------------------------
 
-@pytest.mark.parametrize("bad_hash", [
-    "abc",
-    "../etc/passwd",
-    "a" * 39,
-    "g" * 40,
-    "",
-])
+
+@pytest.mark.parametrize(
+    "bad_hash",
+    [
+        "abc",
+        "../etc/passwd",
+        "a" * 39,
+        "g" * 40,
+        "",
+    ],
+)
 def test_get_rejects_bad_hash(bad_hash):
     store = _make_store(MagicMock())
     with pytest.raises(ValueError, match="Invalid commit hash"):
         store.get("repo", bad_hash)
 
 
-@pytest.mark.parametrize("bad_hash", [
-    "../etc/passwd",
-    "a" * 39,
-    "g" * 40,
-])
+@pytest.mark.parametrize(
+    "bad_hash",
+    [
+        "../etc/passwd",
+        "a" * 39,
+        "g" * 40,
+    ],
+)
 def test_put_rejects_bad_hash(bad_hash):
     store = _make_store(MagicMock())
     with pytest.raises(ValueError, match="Invalid commit hash"):
@@ -96,6 +104,7 @@ def test_put_rejects_bad_hash(bad_hash):
 # ---------------------------------------------------------------------------
 # build_store() — gcs path
 # ---------------------------------------------------------------------------
+
 
 def test_build_store_gcs_missing_bucket(monkeypatch):
     monkeypatch.setenv("SERPENTINE_STORE_BACKEND", "gcs")
@@ -122,7 +131,14 @@ def test_build_store_gcs_ok(monkeypatch):
     mock_gcs_module = MagicMock()
     mock_gcs_module.Client = mock_client
 
-    with patch.dict("sys.modules", {"google.cloud.storage": mock_gcs_module, "google.cloud": MagicMock(), "google": MagicMock()}):
+    with patch.dict(
+        "sys.modules",
+        {
+            "google.cloud.storage": mock_gcs_module,
+            "google.cloud": MagicMock(),
+            "google": MagicMock(),
+        },
+    ):
         store = build_store()
 
     assert isinstance(store, GcsGraphStore)

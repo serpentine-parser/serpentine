@@ -22,10 +22,12 @@ def test_imported_function_call():
         use mod_a::f;
         fn g() { f(); }
     """)
-    edges = analyze_sources([
-        ("/fixture/mod_a.rs", mod_a),
-        ("/fixture/main.rs", main),
-    ])
+    edges = analyze_sources(
+        [
+            ("/fixture/mod_a.rs", mod_a),
+            ("/fixture/main.rs", main),
+        ]
+    )
     assert_has_edge(edges, "main.g", "mod_a.f", "calls")
 
 

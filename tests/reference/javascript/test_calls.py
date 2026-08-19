@@ -22,10 +22,12 @@ def test_imported_function_call():
         import { f } from './models';
         function g() { f(); }
     """)
-    edges = analyze_sources([
-        ("/models.ts", models),
-        ("/main.ts", main),
-    ])
+    edges = analyze_sources(
+        [
+            ("/models.ts", models),
+            ("/main.ts", main),
+        ]
+    )
     assert_has_edge(edges, "main.g", "models.f", "calls")
 
 

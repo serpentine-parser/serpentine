@@ -7,15 +7,15 @@ from typing import Any
 
 import httpx
 import pytest
-from hypothesis import given, settings
+from hypothesis import given
 from hypothesis import strategies as st
 
 from serpentine.vcs.github import GitHubApiBackend
 
-
 # ---------------------------------------------------------------------------
 # Fake transport
 # ---------------------------------------------------------------------------
+
 
 class FakeGitHubTransport(httpx.BaseTransport):
     """In-memory httpx transport. Routes requests by path, longest match wins.
@@ -31,7 +31,11 @@ class FakeGitHubTransport(httpx.BaseTransport):
     def handle_request(self, request: httpx.Request) -> httpx.Response:
         path = request.url.path
         for fragment in sorted(self._routes, key=len, reverse=True):
-            if path == fragment or path.startswith(fragment + "?") or path.endswith(fragment):
+            if (
+                path == fragment
+                or path.startswith(fragment + "?")
+                or path.endswith(fragment)
+            ):
                 entry = self._routes[fragment]
                 if len(entry) == 3 and entry[2] == "bytes":
                     status, body, _ = entry
@@ -90,13 +94,16 @@ py_file_path = st.builds(
 # list_refs
 # ---------------------------------------------------------------------------
 
+
 class TestListRefs:
-    @given(branch_names=st.lists(
-        st.text(alphabet="abcdefghijklmnopqrstuvwxyz-", min_size=1, max_size=20),
-        min_size=1,
-        max_size=5,
-        unique=True,
-    ))
+    @given(
+        branch_names=st.lists(
+            st.text(alphabet="abcdefghijklmnopqrstuvwxyz-", min_size=1, max_size=20),
+            min_size=1,
+            max_size=5,
+            unique=True,
+        )
+    )
     def test_branches_appear_in_refs(self, branch_names):
         branches = [{"name": n} for n in branch_names]
         routes = {
@@ -111,12 +118,14 @@ class TestListRefs:
         for name in branch_names:
             assert name in returned_ids
 
-    @given(tag_names=st.lists(
-        st.text(alphabet="v0123456789.", min_size=2, max_size=10),
-        min_size=1,
-        max_size=5,
-        unique=True,
-    ))
+    @given(
+        tag_names=st.lists(
+            st.text(alphabet="v0123456789.", min_size=2, max_size=10),
+            min_size=1,
+            max_size=5,
+            unique=True,
+        )
+    )
     def test_tags_appear_in_refs(self, tag_names):
         tags = [{"name": n} for n in tag_names]
         routes = {
@@ -137,7 +146,10 @@ class TestListRefs:
             "/repos/org/repo/branches": (200, []),
             "/repos/org/repo/tags": (200, []),
             "/repos/org/repo": (200, {"default_branch": "main"}),
-            "/repos/org/repo/commits": (200, [{"sha": sha, "commit": {"message": message}}]),
+            "/repos/org/repo/commits": (
+                200,
+                [{"sha": sha, "commit": {"message": message}}],
+            ),
         }
         backend = _make_backend(routes)
         refs = backend.list_refs()
@@ -152,10 +164,15 @@ class TestListRefs:
             "/repos/org/repo/branches": (200, [{"name": "main"}]),
             "/repos/org/repo/tags": (200, [{"name": "v1.0"}]),
             "/repos/org/repo": (200, {"default_branch": "main"}),
-            "/repos/org/repo/commits": (200, [{
-                "sha": "a" * 40,
-                "commit": {"message": "initial"},
-            }]),
+            "/repos/org/repo/commits": (
+                200,
+                [
+                    {
+                        "sha": "a" * 40,
+                        "commit": {"message": "initial"},
+                    }
+                ],
+            ),
         }
         backend = _make_backend(routes)
         refs = backend.list_refs()
@@ -167,9 +184,16 @@ class TestListRefs:
 # resolve_to_commit_hash
 # ---------------------------------------------------------------------------
 
+
 class TestResolveToCommitHash:
     @given(
-        ref=st.text(alphabet=st.characters(whitelist_categories=("Lu", "Ll", "Nd"), whitelist_characters="-_"), min_size=1, max_size=40),
+        ref=st.text(
+            alphabet=st.characters(
+                whitelist_categories=("Lu", "Ll", "Nd"), whitelist_characters="-_"
+            ),
+            min_size=1,
+            max_size=40,
+        ),
         sha=hex_sha,
     )
     def test_returns_sha_from_api(self, ref, sha):
@@ -187,6 +211,7 @@ class TestResolveToCommitHash:
 # ---------------------------------------------------------------------------
 # get_archive_at
 # ---------------------------------------------------------------------------
+
 
 class TestGetArchiveAt:
     @given(path=py_file_path, content=py_file_content)
@@ -220,7 +245,9 @@ class TestGetArchiveAt:
         assert result["src/foo.py"] == b"def foo(): pass"
 
     def test_leading_prefix_stripped(self):
-        tarball = _make_tarball({"src/hello.py": b"hello"}, prefix="myorg-myrepo-deadbeef")
+        tarball = _make_tarball(
+            {"src/hello.py": b"hello"}, prefix="myorg-myrepo-deadbeef"
+        )
         routes = {"/repos/org/repo/tarball/main": (200, tarball, "bytes")}
         backend = _make_backend(routes)
         result = backend.get_archive_at("main", {".py"})
@@ -232,20 +259,26 @@ class TestGetArchiveAt:
 # get_config_file
 # ---------------------------------------------------------------------------
 
+
 class TestGetConfigFile:
     @given(content=st.binary(min_size=1, max_size=512))
     def test_returns_content_when_present(self, content):
         routes = {
-            "/repos/org/repo/contents/.serpentine.toml": (200, {
-                "encoding": "base64",
-                "content": _b64(content),
-            }),
+            "/repos/org/repo/contents/.serpentine.toml": (
+                200,
+                {
+                    "encoding": "base64",
+                    "content": _b64(content),
+                },
+            ),
         }
         backend = _make_backend(routes)
         assert backend.get_config_file("main") == content
 
     def test_returns_none_on_404(self):
-        routes = {"/repos/org/repo/contents/.serpentine.toml": (404, {"message": "Not Found"})}
+        routes = {
+            "/repos/org/repo/contents/.serpentine.toml": (404, {"message": "Not Found"})
+        }
         backend = _make_backend(routes)
         assert backend.get_config_file("main") is None
 
@@ -254,20 +287,26 @@ class TestGetConfigFile:
 # get_file_at
 # ---------------------------------------------------------------------------
 
+
 class TestGetFileAt:
     @given(path=py_file_path, content=st.binary(min_size=1, max_size=512))
     def test_returns_content_when_present(self, path, content):
         routes = {
-            f"/repos/org/repo/contents/{path}": (200, {
-                "encoding": "base64",
-                "content": _b64(content),
-            }),
+            f"/repos/org/repo/contents/{path}": (
+                200,
+                {
+                    "encoding": "base64",
+                    "content": _b64(content),
+                },
+            ),
         }
         backend = _make_backend(routes)
         assert backend.get_file_at("main", path) == content
 
     def test_returns_none_on_404(self):
-        routes = {"/repos/org/repo/contents/missing.py": (404, {"message": "Not Found"})}
+        routes = {
+            "/repos/org/repo/contents/missing.py": (404, {"message": "Not Found"})
+        }
         backend = _make_backend(routes)
         assert backend.get_file_at("main", "missing.py") is None
 
@@ -276,12 +315,14 @@ class TestGetFileAt:
 # Factory tests
 # ---------------------------------------------------------------------------
 
+
 class TestFactory:
     def test_github_slug_without_token_raises(self, monkeypatch):
         monkeypatch.delenv("SERPENTINE_GITHUB_TOKEN", raising=False)
         monkeypatch.delenv("SERPENTINE_REPOS_DIR", raising=False)
         from serpentine.storage.factory import ConfigError
         from serpentine.vcs.factory import build_vcs_manager
+
         with pytest.raises(ConfigError, match="SERPENTINE_GITHUB_TOKEN"):
             build_vcs_manager("org/repo")
 
@@ -289,8 +330,9 @@ class TestFactory:
         monkeypatch.setenv("SERPENTINE_GITHUB_TOKEN", "ghp_test")
         monkeypatch.delenv("SERPENTINE_REPOS_DIR", raising=False)
         from serpentine.vcs.factory import build_vcs_manager
-        from serpentine.vcs.manager import VcsManager
         from serpentine.vcs.github import GitHubApiBackend
+        from serpentine.vcs.manager import VcsManager
+
         mgr = build_vcs_manager("org/repo")
         assert isinstance(mgr, VcsManager)
         assert isinstance(mgr._backend, GitHubApiBackend)
@@ -300,14 +342,18 @@ class TestFactory:
         monkeypatch.delenv("SERPENTINE_GITHUB_TOKEN", raising=False)
         from serpentine.storage.factory import ConfigError
         from serpentine.vcs.factory import build_vcs_manager
+
         with pytest.raises(ConfigError):
             build_vcs_manager("notaslug")
 
     def test_local_repo_takes_precedence_over_github(self, monkeypatch, tmp_path):
         import pygit2
+
         repo_path = tmp_path / "myrepo"
         repo_path.mkdir()
-        (repo_path / ".serpentine.toml").write_text("[analysis]\nextensions = [\".py\"]\n")
+        (repo_path / ".serpentine.toml").write_text(
+            '[analysis]\nextensions = [".py"]\n'
+        )
         sig = pygit2.Signature("T", "t@t.com")
         repo = pygit2.init_repository(str(repo_path))
         index = repo.index
@@ -319,8 +365,9 @@ class TestFactory:
         monkeypatch.setenv("SERPENTINE_REPOS_DIR", str(tmp_path))
         monkeypatch.setenv("SERPENTINE_GITHUB_TOKEN", "ghp_test")
 
-        from serpentine.vcs.factory import build_vcs_manager
         from serpentine.vcs.backend import GitBackend
+        from serpentine.vcs.factory import build_vcs_manager
+
         mgr = build_vcs_manager("myrepo")
         assert isinstance(mgr._backend, GitBackend)
 
@@ -330,6 +377,7 @@ class TestFactory:
         monkeypatch.setenv("SERPENTINE_ALLOWED_REPOS", "org/repo1,org/repo2")
         from serpentine.vcs.factory import build_vcs_managers
         from serpentine.vcs.github import GitHubApiBackend
+
         managers = build_vcs_managers()
         assert "org/repo1" in managers
         assert "org/repo2" in managers

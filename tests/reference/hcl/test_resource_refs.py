@@ -1,4 +1,5 @@
 """Cross-resource reference edges — `aws_subnet.main.id` style traversals."""
+
 from textwrap import dedent
 
 from ..helpers import analyze_sources, assert_has_edge
@@ -16,7 +17,9 @@ def test_resource_attribute_reference():
         }
     """)
     edges = analyze_sources([("/fixture/main.tf", tf)])
-    assert_has_edge(edges, "resource.aws_instance.app", "resource.aws_subnet.main", "references")
+    assert_has_edge(
+        edges, "resource.aws_instance.app", "resource.aws_subnet.main", "references"
+    )
 
 
 def test_resource_reference_in_interpolation():
@@ -29,7 +32,12 @@ def test_resource_reference_in_interpolation():
         }
     """)
     edges = analyze_sources([("/fixture/main.tf", tf)])
-    assert_has_edge(edges, "resource.aws_instance.app", "resource.aws_security_group.sg", "references")
+    assert_has_edge(
+        edges,
+        "resource.aws_instance.app",
+        "resource.aws_security_group.sg",
+        "references",
+    )
 
 
 def test_multiple_resource_deps():
@@ -44,5 +52,12 @@ def test_multiple_resource_deps():
         }
     """)
     edges = analyze_sources([("/fixture/main.tf", tf)])
-    assert_has_edge(edges, "resource.aws_instance.app", "resource.aws_subnet.main", "references")
-    assert_has_edge(edges, "resource.aws_instance.app", "resource.aws_security_group.sg", "references")
+    assert_has_edge(
+        edges, "resource.aws_instance.app", "resource.aws_subnet.main", "references"
+    )
+    assert_has_edge(
+        edges,
+        "resource.aws_instance.app",
+        "resource.aws_security_group.sg",
+        "references",
+    )

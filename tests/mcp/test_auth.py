@@ -9,6 +9,7 @@ from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
 
+from serpentine.mcp import config as mcp_config
 from serpentine.mcp.auth import ConfigError, JWTVerifier, build_jwt_verifier
 
 
@@ -131,6 +132,61 @@ def test_jwks_uri_returns_verifier(monkeypatch):
 
 
 # ---------------------------------------------------------------------------
+# build_jwt_verifier() — optional MCP config file (check_auth hook loading)
+# ---------------------------------------------------------------------------
+
+def _set_valid_auth_env(monkeypatch, rsa_public_pem):
+    monkeypatch.delenv("SERPENTINE_JWKS_URI", raising=False)
+    monkeypatch.delenv("SERPENTINE_MCP_ALLOW_UNAUTHENTICATED", raising=False)
+    monkeypatch.setenv("SERPENTINE_JWT_PUBLIC_KEY", rsa_public_pem)
+    monkeypatch.setenv("SERPENTINE_JWT_ISSUER", "test-issuer")
+    monkeypatch.setenv("SERPENTINE_JWT_AUDIENCE", "test-aud")
+
+
+def test_missing_default_config_file_is_not_an_error(monkeypatch, rsa_public_pem, tmp_path):
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.delenv("SERPENTINE_MCP_CONFIG_FILE", raising=False)
+    _set_valid_auth_env(monkeypatch, rsa_public_pem)
+    verifier = build_jwt_verifier()
+    assert isinstance(verifier, JWTVerifier)
+    assert mcp_config.get_hook("check_auth") is None
+
+
+def test_explicit_config_file_missing_raises(monkeypatch, rsa_public_pem, tmp_path):
+    monkeypatch.setenv("SERPENTINE_MCP_CONFIG_FILE", str(tmp_path / "does_not_exist.py"))
+    _set_valid_auth_env(monkeypatch, rsa_public_pem)
+    with pytest.raises(ConfigError, match="does_not_exist.py"):
+        build_jwt_verifier()
+
+
+def test_broken_config_file_raises(monkeypatch, rsa_public_pem, tmp_path):
+    config_file = tmp_path / "broken.py"
+    config_file.write_text("def broken(:\n")
+    monkeypatch.setenv("SERPENTINE_MCP_CONFIG_FILE", str(config_file))
+    _set_valid_auth_env(monkeypatch, rsa_public_pem)
+    with pytest.raises(ConfigError):
+        build_jwt_verifier()
+
+
+def test_default_config_file_present_and_valid_registers_hook(monkeypatch, rsa_public_pem, tmp_path):
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "serpentine_mcp_config.py").write_text(
+        "from serpentine.mcp.config import config\n"
+        "\n"
+        "@config('check_auth')\n"
+        "def check_auth(claims):\n"
+        "    return claims.get('org_id') == 'acme'\n"
+    )
+    monkeypatch.delenv("SERPENTINE_MCP_CONFIG_FILE", raising=False)
+    _set_valid_auth_env(monkeypatch, rsa_public_pem)
+    verifier = build_jwt_verifier()
+    assert isinstance(verifier, JWTVerifier)
+    hook = mcp_config.get_hook("check_auth")
+    assert hook is not None
+    assert hook({"org_id": "acme"}) is True
+
+
+# ---------------------------------------------------------------------------
 # JWTVerifier.verify_token() — valid token
 # ---------------------------------------------------------------------------
 
@@ -200,3 +256,39 @@ def test_wrong_key_rejected(rsa_public_pem, rsa_private_pem):
 def test_garbage_token_rejected(rsa_public_pem):
     verifier = _make_verifier(rsa_public_pem)
     assert asyncio.run(verifier.verify_token("not.a.token")) is None
+
+
+# ---------------------------------------------------------------------------
+# JWTVerifier.verify_token() — check_auth hook
+# ---------------------------------------------------------------------------
+
+def test_no_check_auth_hook_unaffected(rsa_public_pem, rsa_private_pem):
+    verifier = _make_verifier(rsa_public_pem)
+    token = _make_token(rsa_private_pem)
+    result = asyncio.run(verifier.verify_token(token))
+    assert result is not None
+
+
+def test_check_auth_hook_authorizes(rsa_public_pem, rsa_private_pem):
+    mcp_config.config("check_auth")(lambda claims: claims.get("org_id") == "acme")
+    verifier = _make_verifier(rsa_public_pem)
+    token = _make_token(rsa_private_pem, extra={"org_id": "acme"})
+    result = asyncio.run(verifier.verify_token(token))
+    assert result is not None
+
+
+def test_check_auth_hook_rejects(rsa_public_pem, rsa_private_pem):
+    mcp_config.config("check_auth")(lambda claims: claims.get("org_id") == "acme")
+    verifier = _make_verifier(rsa_public_pem)
+    token = _make_token(rsa_private_pem, extra={"org_id": "other"})
+    assert asyncio.run(verifier.verify_token(token)) is None
+
+
+def test_check_auth_hook_raising_rejects(rsa_public_pem, rsa_private_pem):
+    def _boom(claims):
+        raise RuntimeError("boom")
+
+    mcp_config.config("check_auth")(_boom)
+    verifier = _make_verifier(rsa_public_pem)
+    token = _make_token(rsa_private_pem)
+    assert asyncio.run(verifier.verify_token(token)) is None
