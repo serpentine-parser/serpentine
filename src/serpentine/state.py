@@ -58,6 +58,7 @@ class GraphStateManager:
         self._analyzer: Any = None  # The Rust FileManager
         self._start_graph_data: dict[str, Any] = {"nodes": [], "edges": []}
         self._vcs_frozen: bool = False
+        self._vcs_active: bool = False
 
         # Load configuration
         self._config = Config.load(project_path or Path.cwd())
@@ -92,7 +93,10 @@ class GraphStateManager:
         """
         with self._lock:
             try:
-                self._previous_graph_data = self._graph_data.copy()
+                # Only update the baseline for non-VCS incremental events; in VCS mode
+                # _previous_graph_data holds the comparison baseline and must not be lost.
+                if not self._vcs_active:
+                    self._previous_graph_data = self._graph_data.copy()
 
                 config_path = next(
                     (project_path / f for f in (".serpentine.yml", "serpentine.yml") if (project_path / f).exists()),
@@ -127,18 +131,28 @@ class GraphStateManager:
                 else:
                     # File-watcher triggered re-analysis.
                     if self._analyzer is not None:
-                        self._do_incremental_analysis(project_path, changed_files)
+                        if self._vcs_frozen:
+                            # Keep Rust analyzer current but preserve the frozen graph snapshot
+                            # so get_graph_json() continues to return the frozen view.
+                            frozen_data = self._graph_data
+                            frozen_json = self._graph_json
+                            self._do_incremental_analysis(project_path, changed_files)
+                            self._graph_data = frozen_data
+                            self._graph_json = frozen_json
+                        else:
+                            self._do_incremental_analysis(project_path, changed_files)
                     else:
                         self._do_analysis(project_path, self._find_source_files(project_path))
                     # Persist updated graph so the next CLI invocation gets a warm cache.
-                    try:
-                        source_files = self._find_source_files(project_path)
-                        cache = CacheManager(project_path, config_path)
-                        fp = cache.compute_fingerprint(source_files)
-                        cache.save(fp, self._graph_json)
-                    except Exception as cache_err:
-                        logger.warning(f"Cache save failed: {cache_err}")
-                    self._compute_change_status(changed_files)
+                    if not self._vcs_frozen:
+                        try:
+                            source_files = self._find_source_files(project_path)
+                            cache = CacheManager(project_path, config_path)
+                            fp = cache.compute_fingerprint(source_files)
+                            cache.save(fp, self._graph_json)
+                        except Exception as cache_err:
+                            logger.warning(f"Cache save failed: {cache_err}")
+                        self._compute_change_status(changed_files)
 
                 logger.info(
                     f"Analysis complete: {self.node_count} nodes, {self.edge_count} edges"
@@ -296,6 +310,12 @@ class GraphStateManager:
 
     def _compute_change_status(self, changed_files: dict[str, str]) -> None:
         """Diff old vs new graph nodes and update change status and ghost nodes."""
+        if self._vcs_active:
+            # Full recompute from baseline every time — don't accumulate incremental state.
+            self._node_change_status.clear()
+            self._ghost_nodes.clear()
+            self._edge_change_status.clear()
+            self._deleted_edge_data.clear()
         old = self._flatten_nodes(self._previous_graph_data.get("nodes", []))
         new = self._flatten_nodes(self._graph_data.get("nodes", []))
 
@@ -480,6 +500,7 @@ class GraphStateManager:
             self._edge_change_status.clear()
             self._deleted_edge_data.clear()
             self._previous_graph_data = json.loads(from_graph_json)
+            self._vcs_active = True
             if to_graph_json is not None:
                 self._vcs_frozen = True
                 self._update_state(to_graph_json)
@@ -490,6 +511,7 @@ class GraphStateManager:
     def clear_vcs_comparison(self) -> None:
         """Return to normal file-watcher diff mode. Restores live updates if frozen."""
         with self._lock:
+            self._vcs_active = False
             self._vcs_frozen = False
             self._previous_graph_data = {"nodes": [], "edges": []}
             self._node_change_status.clear()
@@ -500,6 +522,8 @@ class GraphStateManager:
     def update_start(self) -> None:
         """Move the @start anchor to the current live graph, clearing the change overlay."""
         with self._lock:
+            self._vcs_active = False
+            self._vcs_frozen = False
             self._start_graph_data = self._graph_data.copy()
             self._previous_graph_data = self._graph_data.copy()
             self._node_change_status.clear()
