@@ -12,7 +12,6 @@ Starlette application by the app factory.
 
 import json
 import logging
-from collections.abc import Iterator
 from typing import TYPE_CHECKING, Any
 
 from starlette.requests import Request
@@ -20,7 +19,7 @@ from starlette.responses import JSONResponse, Response
 from starlette.routing import Route, WebSocketRoute
 from starlette.websockets import WebSocket, WebSocketDisconnect
 
-from serpentine.selector import GraphSelector, filter_by_state
+from serpentine.domain import apply_filters, get_catalog, inject_source
 from serpentine.server.websocket import ConnectionManager
 from serpentine.vcs.manager import VcsManager
 
@@ -83,32 +82,17 @@ def create_routes(
             GET /api/graph?select=analyzer+          # Analyzer + dependents
             GET /api/graph?select=@test&exclude=mock # Component without mocks
         """
-        graph_data = state_manager.get_graph_data()
-
-        # Extract query parameters
         select = request.query_params.get("select", "").strip()
         exclude = request.query_params.get("exclude", "").strip()
         state = request.query_params.get("state", "").strip()
 
-        # Apply filtering if select or exclude parameter is provided
-        if select or exclude:
-            logger.info(f"Applying selector: select={select} exclude={exclude}")
-            logger.info(
-                f"Before filter: {len(graph_data.get('nodes', []))} nodes, {len(graph_data.get('edges', []))} edges"
-            )
-            graph_data = GraphSelector.resolve(
-                graph_data, select=select, exclude=exclude
-            )
-            logger.info(
-                f"After filter: {len(graph_data.get('nodes', []))} nodes, {len(graph_data.get('edges', []))} edges"
-            )
+        graph_data = apply_filters(
+            state_manager.get_graph_data(),
+            select=select or None,
+            exclude=exclude or None,
+            state=state or None,
+        )
 
-        # Apply state filter
-        if state:
-            states = {s.strip() for s in state.split(",") if s.strip()}
-            graph_data = filter_by_state(graph_data, states)
-
-        # Return as JSON
         return Response(
             content=json.dumps(graph_data),
             media_type="application/json",
@@ -126,8 +110,6 @@ def create_routes(
             include_standard (bool, default true): Include stdlib nodes
             include_third_party (bool, default true): Include third-party nodes
         """
-        graph_data = state_manager.get_graph_data()
-
         include_standard = (
             request.query_params.get("include_standard", "true").lower() != "false"
         )
@@ -136,49 +118,32 @@ def create_routes(
         )
         state = request.query_params.get("state", "").strip()
 
-        # Apply state filter before building catalog
-        if state:
-            states = {s.strip() for s in state.split(",") if s.strip()}
-            graph_data = filter_by_state(graph_data, states)
-
-        def _strip_and_filter(nodes: list[dict[str, Any]]) -> list[dict[str, Any]]:
-            result = []
-            for node in nodes:
-                origin = node.get("origin", "local")
-                if origin == "standard" and not include_standard:
-                    continue
-                if origin == "third-party" and not include_third_party:
-                    continue
-                catalog_node = {
-                    "id": node.get("id"),
-                    "name": node.get("name"),
-                    "label": node.get("label") or node.get("name"),
-                    "type": node.get("type") or node.get("object_type"),
-                    "origin": origin,
-                    "parent": node.get("parent"),
-                    "children": _strip_and_filter(node.get("children", [])),
-                }
-                result.append(catalog_node)
-            return result
-
-        catalog_nodes = _strip_and_filter(graph_data.get("nodes", []))
+        flat_nodes = get_catalog(
+            state_manager.get_graph_data(),
+            include_standard=include_standard,
+            include_third_party=include_third_party,
+            state=state or None,
+        )
 
         return Response(
             content=json.dumps(
-                {
-                    "nodes": catalog_nodes,
-                    "metadata": {
-                        "node_count": sum(1 for _ in _count_nodes(catalog_nodes))
-                    },
-                }
+                {"nodes": flat_nodes, "metadata": {"node_count": len(flat_nodes)}}
             ),
             media_type="application/json",
         )
 
-    def _count_nodes(nodes: list[dict[str, Any]]) -> Iterator[dict[str, Any]]:
-        for node in nodes:
-            yield node
-            yield from _count_nodes(node.get("children", []))
+    async def get_vcs_refs(request: Request) -> Response:
+        """Return available VCS refs for the ref picker."""
+        if vcs_manager is None:
+            return Response(
+                content=json.dumps({"available": False, "refs": []}),
+                media_type="application/json",
+            )
+        refs = [{"id": r.id, "display": r.display, "kind": r.kind} for r in vcs_manager.list_refs()]
+        return Response(
+            content=json.dumps({"available": True, "refs": refs}),
+            media_type="application/json",
+        )
 
     async def get_vcs_refs(request: Request) -> Response:
         """Return available VCS refs for the ref picker."""
@@ -241,7 +206,22 @@ def create_routes(
                     )
                 elif data.get("action") == "get_node_code":
                     qualname = data.get("data", {}).get("qualname", "")
-                    code = state_manager.get_node_code(qualname)
+                    graph_data = state_manager.get_graph_data()
+
+                    def _find_node(nodes: list[dict[str, Any]], qn: str) -> dict[str, Any] | None:
+                        for n in nodes:
+                            if n.get("id") == qn:
+                                return n
+                            found = _find_node(n.get("children", []), qn)
+                            if found:
+                                return found
+                        return None
+
+                    node = _find_node(graph_data.get("nodes", []), qualname)
+                    code: str | None = None
+                    if node:
+                        inject_source({"nodes": [node], "edges": []}, state_manager._analyzer)
+                        code = node.get("code_block")
                     await websocket.send_json({
                         "type": "node_code",
                         "data": {"qualname": qualname, "code": code},

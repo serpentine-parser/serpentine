@@ -58,6 +58,18 @@ local_resource(
   labels=['frontend'],
 )
 
+# ── MCP Server ───────────────────────────────────────────────────────────────
+# Reads config from playground/.env; restarts when Python source changes
+local_resource(
+  'mcp-server',
+  serve_cmd='set -a && . playground/.env && set +a && uv run serpentine mcp serve --port 8001',
+  deps=['src/serpentine', 'playground/.env'],
+  labels=['mcp'],
+  resource_deps=['rust-extension'],
+  allow_parallel=True,
+  trigger_mode=TRIGGER_MODE_AUTO,
+)
+
 # ── Commands ──────────────────────────────────────────────────────────────────
 # Manual buttons for convenience
 local_resource(

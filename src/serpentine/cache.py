@@ -253,3 +253,13 @@ class VcsRefCacheManager:
             entry.write_text(graph_json, encoding="utf-8")
         except Exception as e:
             logger.debug(f"VCS ref cache save failed: {e}")
+
+
+class NullCache:
+    """No-op cache for MCP ingestion — graph JSON goes directly to GraphStore."""
+
+    def get(self, commit_hash: str, config_fp: str) -> str | None:
+        return None
+
+    def put(self, commit_hash: str, config_fp: str, graph_json: str) -> None:
+        pass

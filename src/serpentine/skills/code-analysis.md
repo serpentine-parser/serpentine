@@ -53,28 +53,36 @@ Then classify the query to determine the lookup path:
 
 ## Step 2 — Execute
 
-**Read source + edges for a known symbol** (the default — use this first):
+**Bounded context in both directions — use this by default:**
 
 ```bash
-uv run serpentine analyze . --select "*.Target" --source
+uv run serpentine analyze . --select "1+*.Target+1" --source
 ```
 
-**Trace callers ("who uses X?") with source:**
+One hop upstream (what it calls) and one hop downstream (who calls it). Almost always more useful than a flat selector. Scale up to `@*.Target` for a full connected component, or down to `*.Target+` / `+*.Target` when you only need one direction.
+
+**Full connected component — for understanding a feature end-to-end:**
+
+```bash
+uv run serpentine analyze . --select "@*.Target" --source
+```
+
+**Trace callers only ("who uses X?"):**
 
 ```bash
 uv run serpentine analyze . --select "*.Target+" --source
 ```
 
-**Trace dependencies ("what does X use?") with source:**
+**Trace dependencies only ("what does X use?"):**
 
 ```bash
 uv run serpentine analyze . --select "+*.Target" --source
 ```
 
-**Both directions, bounded** (avoid unbounded `+*.Target+` on large graphs):
+**Multiple targets in one call** (apply operators per target, combine with comma-union):
 
 ```bash
-uv run serpentine analyze . --select "1+*.Target+1" --source
+uv run serpentine analyze . --select "1+*.TargetA+1,1+*.TargetB+1" --source
 ```
 
 **Read an entire module's source:**
@@ -83,10 +91,10 @@ uv run serpentine analyze . --select "1+*.Target+1" --source
 uv run serpentine analyze . --select "module.submodule.*" --source
 ```
 
-**Multiple targets in one call** (comma-separated, union — use instead of separate calls):
+**Flat selector — only when you need exactly one node and have no relationship questions:**
 
 ```bash
-uv run serpentine analyze . --select "*.TargetA,*.TargetB" --source
+uv run serpentine analyze . --select "*.Target" --source
 ```
 
 **Terraform — include providers and built-ins** (add these flags whenever working with `.tf` files):

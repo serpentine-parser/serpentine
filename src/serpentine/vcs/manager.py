@@ -2,12 +2,23 @@
 
 import fnmatch
 import logging
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
 from serpentine.vcs.backend import VcsBackend, VcsRef
 
 logger = logging.getLogger(__name__)
+
+
+def _parse_filter_date(value: str) -> datetime:
+    try:
+        dt = datetime.fromisoformat(value)
+    except ValueError:
+        raise ValueError(f"Invalid date '{value}', expected ISO 8601 (e.g. 2026-08-01)")
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt.astimezone(timezone.utc)
 
 
 class VcsManager:
@@ -18,8 +29,26 @@ class VcsManager:
         self._cache = cache
         self._config = config
 
-    def list_refs(self) -> list[VcsRef]:
-        return self._backend.list_refs()
+    def list_refs(self, since: str | None = None, until: str | None = None) -> list[VcsRef]:
+        refs = self._backend.list_refs()
+        if since is None and until is None:
+            return refs
+
+        since_dt = _parse_filter_date(since) if since is not None else None
+        until_dt = _parse_filter_date(until) if until is not None else None
+
+        filtered = []
+        for ref in refs:
+            if ref.timestamp is None:
+                filtered.append(ref)
+                continue
+            ref_dt = datetime.fromisoformat(ref.timestamp.replace("Z", "+00:00"))
+            if since_dt is not None and ref_dt < since_dt:
+                continue
+            if until_dt is not None and ref_dt > until_dt:
+                continue
+            filtered.append(ref)
+        return filtered
 
     def get_graph_at(self, ref: str) -> str:
         """Return graph JSON for the project at the given VCS ref. Cache-aware."""

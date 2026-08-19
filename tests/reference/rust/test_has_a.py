@@ -22,10 +22,12 @@ def test_imported_struct_construction():
         use pkg::models::C;
         let x = C {};
     """)
-    edges = analyze_sources([
-        ("/fixture/pkg/models.rs", models),
-        ("/fixture/main.rs", main),
-    ])
+    edges = analyze_sources(
+        [
+            ("/fixture/pkg/models.rs", models),
+            ("/fixture/main.rs", main),
+        ]
+    )
     assert_has_edge(edges, "main.x", "pkg.models.C", "has-a")
 
 
