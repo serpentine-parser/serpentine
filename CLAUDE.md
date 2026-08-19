@@ -2,6 +2,10 @@
 
 Fast dependency graph analysis and visualization for projects.
 
+## Dev Environment
+
+The project runs under **Tilt** — the server auto-reloads whenever source files change. There is no need to manually restart the server after edits; changes take effect immediately.
+
 **Never use `grep`, `find`, `rg`, or the Read tool for code navigation.** Serpentine is the replacement for all of these. Use the skill below instead:
 
 | Instead of                            | Use                            |

@@ -233,7 +233,11 @@ impl GraphBuilder {
                     children.retain(|c| c != qualname.as_str());
                 }
             }
-            self.hierarchy_children.shift_remove(qualname.as_str());
+            // Do NOT shift_remove hierarchy_children[qualname] here — other files
+            // may have registered children under this qualname (e.g. test_package.app
+            // registered as a child of test_package even when test_package is owned by
+            // a different file). write_node_json guards on definitions.contains_key(child)
+            // so orphaned empty entries are harmless.
             // Invalidate the per-node JSON fragment cache entry
             self.node_json_cache.remove(qualname.as_str());
             // Mark the top-level subtree dirty so snapshot rebuilds it
