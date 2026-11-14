@@ -1,9 +1,9 @@
 [project]
 name = "serpentine-parser"
-version = "0.5.0"
+version = "0.5.1"
 description = "Fast dependency graph analysis and visualization for Python, JavaScript/TypeScript, Rust, and Terraform projects"
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 license = { file = "LICENSE" }
 authors = [
     { name = "Christopher Garretty" },
@@ -17,7 +17,6 @@ classifiers = [
     "License :: OSI Approved :: Apache Software License",
     "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
